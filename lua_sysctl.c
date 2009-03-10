@@ -1,7 +1,8 @@
-#include <sys/resource.h>
-#include <sys/sysctl.h>
-#include <sys/time.h>
 #include <sys/types.h>
+#include <sys/sysctl.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <sys/vmmeter.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -27,13 +28,13 @@ S_clockinfo(lua_State *L, int l2, void *p)
     lua_newtable(L);
 
     lua_pushinteger(L, ci->hz);
-    lua_setfield(L, 2, "hz");
+    lua_setfield(L, -2, "hz");
     lua_pushinteger(L, ci->tick);
-    lua_setfield(L, 2, "tick");
+    lua_setfield(L, -2, "tick");
     lua_pushinteger(L, ci->profhz);
-    lua_setfield(L, 2, "profhz");
+    lua_setfield(L, -2, "profhz");
     lua_pushinteger(L, ci->stathz);
-    lua_setfield(L, 2, "stathz");
+    lua_setfield(L, -2, "stathz");
 
 	return (1);
 }
@@ -42,19 +43,19 @@ S_clockinfo(lua_State *L, int l2, void *p)
 static int
 S_loadavg(lua_State *L, int l2, void *p)
 {
-	struct loadavg *tv = (struct loadavg *)p;
+	struct loadavg *la = (struct loadavg *)p;
+    int i;
 
-	if (l2 != sizeof(*tv))
-        return (luaL_error(L, "S_loadavg %d != %d", l2, sizeof(*tv)));
+	if (l2 != sizeof(*la))
+        return (luaL_error(L, "S_loadavg %d != %d", l2, sizeof(*la)));
 
     lua_newtable(L);
 
-    lua_pushnumber(L, (double)tv->ldavg[0]/(double)tv->fscale);
-    lua_setfield(L, 2, "0");
-    lua_pushnumber(L, (double)tv->ldavg[1]/(double)tv->fscale);
-    lua_setfield(L, 2, "1");
-    lua_pushnumber(L, (double)tv->ldavg[2]/(double)tv->fscale);
-    lua_setfield(L, 2, "2");
+    for (i = 0; i < 3; i++) {
+        lua_pushinteger(L, i);
+        lua_pushnumber(L, (double)la->ldavg[i]/(double)la->fscale);
+        lua_settable(L, -3);
+    }
 
 	return (1);
 }
@@ -63,85 +64,89 @@ S_loadavg(lua_State *L, int l2, void *p)
 static int
 S_timeval(lua_State *L, int l2, void *p)
 {
-#if 0
 	struct timeval *tv = (struct timeval *)p;
 	time_t tv_sec;
 	char *p1, *p2;
 
-	if (l2 != sizeof(*tv)) {
-		warnx("S_timeval %d != %d", l2, sizeof(*tv));
-		return (1);
-	}
-	printf(hflag ? "{ sec = %'ld, usec = %'ld } " :
-		"{ sec = %ld, usec = %ld } ",
-		tv->tv_sec, tv->tv_usec);
-	tv_sec = tv->tv_sec;
-	p1 = strdup(ctime(&tv_sec));
-	for (p2=p1; *p2 ; p2++)
-		if (*p2 == '\n')
-			*p2 = '\0';
-	fputs(p1, stdout);
-#endif
-	return (0);
+	if (l2 != sizeof(*tv))
+        return (luaL_error(L, "S_timeval %d != %d", l2, sizeof(*tv)));
+
+    lua_newtable(L);
+
+    lua_pushinteger(L, tv->tv_sec);
+    lua_setfield(L, -2, "sec");
+    lua_pushinteger(L, tv->tv_usec);
+    lua_setfield(L, -2, "usec");
+
+	return (1);
 }
 
 
 static int
-S_vmtotal(int l2, void *p)
+S_vmtotal(lua_State *L, int l2, void *p)
 {
-#if 0
 	struct vmtotal *v = (struct vmtotal *)p;
 	int pageKilo = getpagesize() / 1024;
 
-	if (l2 != sizeof(*v)) {
-		warnx("S_vmtotal %d != %d", l2, sizeof(*v));
-		return (1);
-	}
+	if (l2 != sizeof(*v))
+        return (luaL_error(L, "S_vmtotal %d != %d", l2, sizeof(*v)));
 
-	printf(
-	    "\nSystem wide totals computed every five seconds:"
-	    " (values in kilobytes)\n");
-	printf("===============================================\n");
-	printf(
-	    "Processes:\t\t(RUNQ: %hd Disk Wait: %hd Page Wait: "
-	    "%hd Sleep: %hd)\n",
-	    v->t_rq, v->t_dw, v->t_pw, v->t_sl);
-	printf(
-	    "Virtual Memory:\t\t(Total: %dK, Active %dK)\n",
-	    v->t_vm * pageKilo, v->t_avm * pageKilo);
-	printf("Real Memory:\t\t(Total: %dK Active %dK)\n",
-	    v->t_rm * pageKilo, v->t_arm * pageKilo);
-	printf("Shared Virtual Memory:\t(Total: %dK Active: %dK)\n",
-	    v->t_vmshr * pageKilo, v->t_avmshr * pageKilo);
-	printf("Shared Real Memory:\t(Total: %dK Active: %dK)\n",
-	    v->t_rmshr * pageKilo, v->t_armshr * pageKilo);
-	printf("Free Memory Pages:\t%dK\n", v->t_free * pageKilo);
+    lua_newtable(L);
 
-#endif
-	return (0);
+    lua_pushinteger(L, v->t_rq);
+    lua_setfield(L, -2, "rq");
+    lua_pushinteger(L, v->t_dw);
+    lua_setfield(L, -2, "dw");
+    lua_pushinteger(L, v->t_pw);
+    lua_setfield(L, -2, "pw");
+    lua_pushinteger(L, v->t_sl);
+    lua_setfield(L, -2, "sl");
+
+    lua_pushinteger(L, v->t_vm * pageKilo);
+    lua_setfield(L, -2, "vm");
+    lua_pushinteger(L, v->t_avm * pageKilo);
+    lua_setfield(L, -2, "avm");
+
+    lua_pushinteger(L, v->t_rm * pageKilo);
+    lua_setfield(L, -2, "rm");
+    lua_pushinteger(L, v->t_arm * pageKilo);
+    lua_setfield(L, -2, "arm");
+
+    lua_pushinteger(L, v->t_vmshr * pageKilo);
+    lua_setfield(L, -2, "vmshr");
+    lua_pushinteger(L, v->t_avmshr * pageKilo);
+    lua_setfield(L, -2, "avmshr");
+
+    lua_pushinteger(L, v->t_rmshr * pageKilo);
+    lua_setfield(L, -2, "rmshr");
+    lua_pushinteger(L, v->t_armshr * pageKilo);
+    lua_setfield(L, -2, "armshr");
+
+    lua_pushinteger(L, v->t_free * pageKilo);
+    lua_setfield(L, -2, "free");
+
+	return (1);
 }
 
 
 static int
-T_dev_t(int l2, void *p)
+T_dev_t(lua_State *L, int l2, void *p)
 {
-#if 0
 	dev_t *d = (dev_t *)p;
 
-	if (l2 != sizeof(*d)) {
-		warnx("T_dev_T %d != %d", l2, sizeof(*d));
-		return (1);
-	}
+	if (l2 != sizeof(*d))
+        return (luaL_error(L, "T_dev_t %d != %d", l2, sizeof(*d)));
+
+    lua_newtable(L);
+
 	if ((int)(*d) != -1) {
-		if (minor(*d) > 255 || minor(*d) < 0)
-			printf("{ major = %d, minor = 0x%x }",
-				major(*d), minor(*d));
-		else
-			printf("{ major = %d, minor = %d }",
-				major(*d), minor(*d));
-	}
-#endif
-	return (0);
+        lua_pushinteger(L, minor(*d));
+        lua_setfield(L, -2, "minor");
+        lua_pushinteger(L, major(*d));
+        lua_setfield(L, -2, "major");
+    }
+
+	return (1);
 }
 
 
@@ -164,6 +169,9 @@ luaA_sysctl(lua_State *L)
 	if (oidfmt(oid, nlen, fmt, &kind))
 		return (luaL_error(L, "couldn't find format of oid '%s'", key));
 
+	if ((kind & CTLTYPE) == CTLTYPE_NODE)
+		return (luaL_error(L, "can't handle CTLTYPE_NODE atm")); // FIXME
+
 	/* find an estimate of how much we need for this var */
     len = 0;
     i = sysctl(oid, nlen, 0, &len, 0, 0);
@@ -180,16 +188,22 @@ luaA_sysctl(lua_State *L)
 
     switch (kind & CTLTYPE) {
     case CTLTYPE_NODE:
-        free(oval);
-		return (luaL_error(L, "unsupported operation")); // FIXME: should return a table etc.
+        /* TODO */
+        break;
     case CTLTYPE_INT:
+        lua_pushinteger(L, *(int *)val);
+        break;
     case CTLTYPE_UINT:
+        lua_pushinteger(L, *val);
+        break;
     case CTLTYPE_LONG:
+        lua_pushinteger(L, *(long *)val);
+        break;
     case CTLTYPE_ULONG:
-        lua_pushinteger(L, *(lua_Integer *)val);
+        lua_pushinteger(L, *(u_long *)val);
         break;
     case CTLTYPE_QUAD:
-        lua_pushnumber(L, *(lua_Number *)val);
+        lua_pushnumber(L, *(double *)val);
         break;
     case CTLTYPE_STRING:
         lua_pushstring(L, (char *)val);
@@ -208,16 +222,20 @@ luaA_sysctl(lua_State *L)
 		else
             func = NULL;
 
-        if (func)
+        if (func) {
             (*func)(L, len, val);
-        else {
-            free(oval);
-		    return (luaL_error(L, "unknown CTLTYPE: %s", fmt)); // FIXME
+            break;
         }
-        break;
     default:
-        free(oval);
-		return (luaL_error(L, "unknown CTLTYPE: %s", fmt)); // FIXME
+        /* fallback on fmt */
+        switch (*fmt) {
+        case 'A':
+            lua_pushstring(L, (char *)val);
+            break;
+        default:
+            free(oval);
+		    return (luaL_error(L, "unknown CTLTYPE: fmt=%s, kind=%d", fmt, (kind & CTLTYPE))); // FIXME
+        }
     }
 
     free(oval);
