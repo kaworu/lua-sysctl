@@ -7,7 +7,7 @@ show_table = function (t)
     end
 end
 
-sysctl = package.loadlib('./lua_sysctl.so', 'luaopen_sysctl')()
+require('sysctl')
 
 T = {
 "kern.ostype",

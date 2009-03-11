@@ -1,15 +1,15 @@
 SONAME = lua_sysctl
-SOLIB = $(SONAME).so
+SOLIB = sysctl/core.so
 
 LDFLAGS = -shared -soname $(SONAME)
 CFLAGS = -g -fPIC `pkg-config --cflags lua-5.1`
 
 all: $(SOLIB)
 
-$(SONAME).so: $(SONAME).c
+$(SOLIB): src/$(SONAME).c
 		$(CC) $(LDFLAGS) $(CFLAGS) -o $(.TARGET) $(.ALLSRC)
 
 .PHONY: clean
 
 clean:
-		rm -f $(SOLIB)
+		-rm -f $(SOLIB)

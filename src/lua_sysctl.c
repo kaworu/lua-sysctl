@@ -343,7 +343,7 @@ static const luaL_reg lua_sysctl[] =
  * Open our library
  */
 LUALIB_API int
-luaopen_sysctl(lua_State *L)
+luaopen_sysctl_core(lua_State *L)
 {
     luaL_openlib(L, "sysctl", lua_sysctl, 0);
     return (1);
