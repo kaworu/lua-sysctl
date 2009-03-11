@@ -201,8 +201,8 @@ luaA_sysctl_get(lua_State *L)
 {
     int nlen, i, oid[CTL_MAXNAME], hexlen;
     size_t len, intlen;
-    char fmt[BUFSIZ], buf[BUFSIZ];
-    u_int kind, *val, *oval, *p;
+    char fmt[BUFSIZ], buf[BUFSIZ], *val, *oval, *p;
+    u_int kind;
     int (*func)(lua_State *, int, void *);
     uintmax_t umv;
     intmax_t mv;
@@ -241,7 +241,7 @@ luaA_sysctl_get(lua_State *L)
     p = val;
     switch (*fmt) {
     case 'A':
-        lua_pushstring(L, (char *)p);
+        lua_pushstring(L, p);
         break;
     case 'I':
     case 'L':
