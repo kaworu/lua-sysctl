@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <sys/vmmeter.h>
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,9 +13,9 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
-
 static int name2oid(char *name, int *oidp);
 static int oidfmt(int *oid, int len, char *fmt, u_int *kind);
+static int set_IK(char *str, int *val);
 
 
 static int
@@ -52,7 +53,7 @@ S_loadavg(lua_State *L, int l2, void *p)
     lua_newtable(L);
 
     for (i = 0; i < 3; i++) {
-        lua_pushinteger(L, i);
+        lua_pushinteger(L, i + 1);
         lua_pushnumber(L, (double)la->ldavg[i]/(double)la->fscale);
         lua_settable(L, -3);
     }
@@ -151,23 +152,74 @@ T_dev_t(lua_State *L, int l2, void *p)
 
 
 static int
-luaA_sysctl(lua_State *L)
+luaA_sysctl_set(lua_State *L)
 {
-    int nlen, i, oid[CTL_MAXNAME];
-    size_t len;
-    char fmt[BUFSIZ], key[BUFSIZ];
-    u_int kind, *val, *oval;
-    int (*func)(lua_State *, int, void *);
+    int nlen, oid[CTL_MAXNAME];
+    size_t len, newsize = 0;
+    u_int kind;
+    char fmt[BUFSIZ], buf[BUFSIZ], newval[BUFSIZ];
 
-    strlcpy(key, luaL_checkstring(L, 1), sizeof(key));; /* get first argument from lua */
+    /* get first argument from lua */
+    len = strlcpy(buf, luaL_checkstring(L, 1), sizeof(buf));
+    if (len > sizeof(buf))
+        return (luaL_error(L, "first arg too long"));
 
-	nlen = name2oid(key, oid);
+    /* get second argument from lua */
+    len = strlcpy(newval, luaL_checkstring(L, 2), sizeof(newval));
+    if (len > sizeof(newval))
+        return (luaL_error(L, "second arg too long"));
 
+	nlen = name2oid(buf, oid);
 	if (nlen < 0)
-        return (luaL_error(L, "unknown iod '%s'", key));
+        return (luaL_error(L, "unknown iod '%s'", buf));
 
 	if (oidfmt(oid, nlen, fmt, &kind))
-		return (luaL_error(L, "couldn't find format of oid '%s'", key));
+		return (luaL_error(L, "couldn't find format of oid '%s'", buf));
+
+	if ((kind & CTLTYPE) == CTLTYPE_NODE)
+		return (luaL_error(L, "oid '%s' isn't a leaf node", buf));
+
+	if (!(kind & CTLFLAG_WR))
+	    return (luaL_error(L, "oid '%s' is %s", buf,
+                    (kind & CTLFLAG_TUN) ? "read only tunable" : "read only"));
+
+	if ((kind & CTLTYPE) == CTLTYPE_INT ||
+		    (kind & CTLTYPE) == CTLTYPE_UINT ||
+		    (kind & CTLTYPE) == CTLTYPE_LONG ||
+		    (kind & CTLTYPE) == CTLTYPE_ULONG ||
+		    (kind & CTLTYPE) == CTLTYPE_QUAD) {
+		if (strlen(newval) == 0)
+		    return (luaL_error(L, "empty numeric value"));
+	}
+
+    return (0);
+}
+
+
+static int
+luaA_sysctl_get(lua_State *L)
+{
+    int nlen, i, oid[CTL_MAXNAME], hexlen;
+    size_t len, intlen;
+    char fmt[BUFSIZ], buf[BUFSIZ];
+    u_int kind, *val, *oval, *p;
+    int (*func)(lua_State *, int, void *);
+	uintmax_t umv;
+	intmax_t mv;
+
+	bzero(fmt, BUFSIZ);
+	bzero(buf, BUFSIZ);
+
+    len = strlcpy(buf, luaL_checkstring(L, 1), sizeof(buf)); /* get first argument from lua */
+    if (len > sizeof(buf))
+        return (luaL_error(L, "first arg too long"));
+
+	nlen = name2oid(buf, oid);
+	if (nlen < 0)
+        return (luaL_error(L, "unknown iod '%s'", buf));
+
+	if (oidfmt(oid, nlen, fmt, &kind))
+		return (luaL_error(L, "couldn't find format of oid '%s'", buf));
 
 	if ((kind & CTLTYPE) == CTLTYPE_NODE)
 		return (luaL_error(L, "can't handle CTLTYPE_NODE atm")); // FIXME
@@ -186,29 +238,66 @@ luaA_sysctl(lua_State *L)
 	}
 	val[len] = '\0';
 
-    switch (kind & CTLTYPE) {
-    case CTLTYPE_NODE:
-        /* TODO */
+    p = val;
+    switch (*fmt) {
+    case 'A':
+        lua_pushstring(L, (char *)p);
         break;
-    case CTLTYPE_INT:
-        lua_pushinteger(L, *(int *)val);
+    case 'I':
+    case 'L':
+    case 'Q':
+        switch (*fmt) {
+        case 'I': intlen = sizeof(int); break;
+        case 'L': intlen = sizeof(long); break;
+        case 'Q': intlen = sizeof(quad_t); break;
+        }
+		hexlen = 2 + (intlen * CHAR_BIT + 3) / 4;
+        i = 0;
+        lua_newtable(L);
+		while (len >= intlen) {
+            i++;
+			switch (*fmt) {
+			case 'I':
+				umv = *(u_int *)p;
+				mv = *(int *)p;
+				break;
+			case 'L':
+				umv = *(u_long *)p;
+				mv = *(long *)p;
+				break;
+			case 'Q':
+				umv = *(u_quad_t *)p;
+				mv = *(quad_t *)p;
+				break;
+			}
+
+            lua_pushinteger(L, i);
+			if (fmt[1] == 'K' && mv > 0)
+                lua_pushnumber(L, (mv - 2732.0) / 10);
+            else {
+                switch (*fmt) {
+                case 'I':
+                case 'L':
+                    lua_pushinteger(L, fmt[1] == 'U' ? umv : mv);
+                    break;
+                case 'Q':
+                    lua_pushnumber(L, fmt[1] == 'U' ? umv : mv);
+                    break;
+                }
+            }
+            lua_settable(L, -3);
+
+			len -= intlen;
+			p += intlen;
+		}
+        if (i == 1) {
+            lua_pushinteger(L, i);
+            lua_gettable(L, -2);
+            lua_remove(L, lua_gettop(L) - 1); /* remove table */
+        }
         break;
-    case CTLTYPE_UINT:
-        lua_pushinteger(L, *val);
-        break;
-    case CTLTYPE_LONG:
-        lua_pushinteger(L, *(long *)val);
-        break;
-    case CTLTYPE_ULONG:
-        lua_pushinteger(L, *(u_long *)val);
-        break;
-    case CTLTYPE_QUAD:
-        lua_pushnumber(L, *(double *)val);
-        break;
-    case CTLTYPE_STRING:
-        lua_pushstring(L, (char *)val);
-        break;
-    case CTLTYPE_OPAQUE:
+    case 'T':
+    case 'S':
 		if (strcmp(fmt, "S,clockinfo") == 0)
 			func = S_clockinfo;
 		else if (strcmp(fmt, "S,loadavg") == 0)
@@ -226,21 +315,38 @@ luaA_sysctl(lua_State *L)
             (*func)(L, len, val);
             break;
         }
+        /* FALLTHROUGH */
     default:
-        /* fallback on fmt */
-        switch (*fmt) {
-        case 'A':
-            lua_pushstring(L, (char *)val);
-            break;
-        default:
-            free(oval);
-		    return (luaL_error(L, "unknown CTLTYPE: fmt=%s, kind=%d", fmt, (kind & CTLTYPE))); // FIXME
-        }
+        free(oval);
+		return (luaL_error(L, "unknown CTLTYPE: fmt=%s, kind=%d", fmt, (kind & CTLTYPE))); // FIXME
     }
 
     free(oval);
     lua_pushstring(L, fmt);
 	return (2); /* two returned value */
+}
+
+
+/*
+ * Lua initialisation stuff
+ */
+
+
+static const luaL_reg lua_sysctl[] =
+{
+    {"get",        luaA_sysctl_get},
+    {"set",        luaA_sysctl_set},
+    {NULL,          NULL}
+};
+
+/*
+ * Open our library
+ */
+LUALIB_API int
+luaopen_sysctl(lua_State *L)
+{
+    luaL_openlib(L, "sysctl", lua_sysctl, 0);
+    return (1);
 }
 
 
@@ -272,6 +378,44 @@ luaA_sysctl(lua_State *L)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+
+
+static int
+set_IK(char *str, int *val)
+{
+	float temp;
+	int len, kelv;
+	char *p, *endptr;
+
+	if ((len = strlen(str)) == 0)
+		return (0);
+	p = &str[len - 1];
+	if (*p == 'C' || *p == 'F') {
+		*p = '\0';
+		temp = strtof(str, &endptr);
+		if (endptr == str || *endptr != '\0')
+			return (0);
+		if (*p == 'F')
+			temp = (temp - 32) * 5 / 9;
+		kelv = temp * 10 + 2732;
+	} else {
+		kelv = (int)strtol(str, &endptr, 10);
+		if (endptr == str || *endptr != '\0')
+			return (0);
+	}
+	*val = kelv;
+	return (1);
+}
+
+/*
+ * These functions uses a presently undocumented interface to the kernel
+ * to walk the tree and get the type so it can print the value.
+ * This interface is under work and consideration, and should probably
+ * be killed with a big axe by the first person who can find the time.
+ * (be aware though, that the proper interface isn't as obvious as it
+ * may seem, there are various conflicting requirements.
+ */
+
 static int
 name2oid(char *name, int *oidp)
 {
@@ -314,24 +458,4 @@ oidfmt(int *oid, int len, char *fmt, u_int *kind)
 	if (fmt)
 		strcpy(fmt, (char *)(buf + sizeof(u_int)));
 	return (0);
-}
-
-
-/* Lua initialisation stuff */
-
-
-static const luaL_reg lua_sysctl[] =
-{
-    {"query",        luaA_sysctl},
-    {NULL,          NULL}
-};
-
-/*
- * Open our library
- */
-LUALIB_API int
-luaopen_sysctl(lua_State *L)
-{
-    luaL_openlib(L, "sysctl", lua_sysctl, 0);
-    return (1);
 }
