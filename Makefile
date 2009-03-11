@@ -2,7 +2,7 @@ SONAME = lua_sysctl
 SOLIB = $(SONAME).so
 
 LDFLAGS = -shared -soname $(SONAME)
-CFLAGS = -fPIC `pkg-config --cflags lua-5.1`
+CFLAGS = -g -fPIC `pkg-config --cflags lua-5.1`
 
 all: $(SOLIB)
 
