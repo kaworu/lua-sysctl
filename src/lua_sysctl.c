@@ -289,18 +289,14 @@ luaA_sysctl_get(lua_State *L)
             }
 
             lua_pushinteger(L, i);
-            if (fmt[1] == 'K' && mv > 0)
-                lua_pushnumber(L, (mv - 2732.0) / 10);
-            else {
-                switch (*fmt) {
-                case 'I':
-                case 'L':
-                    lua_pushinteger(L, fmt[1] == 'U' ? umv : mv);
-                    break;
-                case 'Q':
-                    lua_pushnumber(L, fmt[1] == 'U' ? umv : mv);
-                    break;
-                }
+            switch (*fmt) {
+            case 'I':
+            case 'L':
+                lua_pushinteger(L, fmt[1] == 'U' ? umv : mv);
+                break;
+            case 'Q':
+                lua_pushnumber(L, fmt[1] == 'U' ? umv : mv);
+                break;
             }
             lua_settable(L, -3);
 
