@@ -154,33 +154,35 @@ T_dev_t(lua_State *L, int l2, void *p)
 static int
 luaA_sysctl_set(lua_State *L)
 {
-    int nlen, oid[CTL_MAXNAME];
+    int nlen, intval, oid[CTL_MAXNAME];
     size_t len, newsize = 0;
     u_int kind;
-    char fmt[BUFSIZ], buf[BUFSIZ], newval[BUFSIZ];
+    char fmt[BUFSIZ], buf0[BUFSIZ], buf1[BUFSIZ], *endptr;
+    void *newval = NULL;
 
     /* get first argument from lua */
-    len = strlcpy(buf, luaL_checkstring(L, 1), sizeof(buf));
-    if (len > sizeof(buf))
+    len = strlcpy(buf0, luaL_checkstring(L, 1), sizeof(buf0));
+    if (len > sizeof(buf0))
         return (luaL_error(L, "first arg too long"));
 
     /* get second argument from lua */
-    len = strlcpy(newval, luaL_checkstring(L, 2), sizeof(newval));
-    if (len > sizeof(newval))
+    len = strlcpy(buf1, luaL_checkstring(L, 2), sizeof(buf1));
+    if (len > sizeof(buf1))
         return (luaL_error(L, "second arg too long"));
+    newval = buf1;
 
-    nlen = name2oid(buf, oid);
+    nlen = name2oid(buf0, oid);
     if (nlen < 0)
-        return (luaL_error(L, "unknown iod '%s'", buf));
+        return (luaL_error(L, "unknown iod '%s'", buf0));
 
     if (oidfmt(oid, nlen, fmt, &kind))
-        return (luaL_error(L, "couldn't find format of oid '%s'", buf));
+        return (luaL_error(L, "couldn't find format of oid '%s'", buf0));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
-        return (luaL_error(L, "oid '%s' isn't a leaf node", buf));
+        return (luaL_error(L, "oid '%s' isn't a leaf node", buf0));
 
     if (!(kind & CTLFLAG_WR))
-        return (luaL_error(L, "oid '%s' is %s", buf,
+        return (luaL_error(L, "oid '%s' is %s", buf0,
                     (kind & CTLFLAG_TUN) ? "read only tunable" : "read only"));
 
     if ((kind & CTLTYPE) == CTLTYPE_INT ||
@@ -190,6 +192,21 @@ luaA_sysctl_set(lua_State *L)
             (kind & CTLTYPE) == CTLTYPE_QUAD) {
         if (strlen(newval) == 0)
             return (luaL_error(L, "empty numeric value"));
+    }
+
+
+    switch (kind & CTLTYPE) {
+    case CTLTYPE_INT:
+        if (strcmp(fmt, "IK") == 0) {
+            if (!set_IK(newval, &intval))
+                return (luaL_error(L, "invalid value '%s'", (char *)newval));
+        }
+        else {
+            intval = (int)strtol(newval, &endptr, 0);
+            if (endptr == newval || *endptr != '\0')
+                return (luaL_error(L, "invalid integer '%s'", (char *)newval));
+        }
+        break;
     }
 
     return (0);
@@ -385,17 +402,18 @@ set_IK(char *str, int *val)
 {
     float temp;
     int len, kelv;
-    char *p, *endptr;
+    char *p, *endptr, unit;
 
     if ((len = strlen(str)) == 0)
         return (0);
     p = &str[len - 1];
     if (*p == 'C' || *p == 'F') {
+        unit = *p;
         *p = '\0';
         temp = strtof(str, &endptr);
         if (endptr == str || *endptr != '\0')
             return (0);
-        if (*p == 'F')
+        if (unit == 'F')
             temp = (temp - 32) * 5 / 9;
         kelv = temp * 10 + 2732;
     } else {
