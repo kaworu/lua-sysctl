@@ -1,9 +1,12 @@
 #include <sys/types.h>
+#include <sys/param.h>
+#include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <sys/vmmeter.h>
 
+#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -152,30 +155,58 @@ T_dev_t(lua_State *L, int l2, void *p)
 
 
 static int
+set_T_dev_t(lua_State *L, char *path, void **val, size_t *size)
+{
+	struct stat statb;
+    int rc;
+
+	if (strcmp(path, "none") != 0 && strcmp(path, "off") != 0) {
+		rc = stat(path, &statb);
+		if (rc)
+            return (luaL_error(L, "cannot stat %s", path));
+
+		if (!S_ISCHR(statb.st_mode))
+            return (luaL_error(L, "must specify a device special file."));
+	}
+    else
+		statb.st_rdev = NODEV;
+
+	*val = (void *)&statb.st_rdev;
+	*size = sizeof(statb.st_rdev);
+
+    return (1);
+}
+
+
+static int
 luaA_sysctl_set(lua_State *L)
 {
-    int nlen, intval, oid[CTL_MAXNAME];
-    size_t len, newsize = 0;
+    int len, intval, mib[CTL_MAXNAME];
+    unsigned int uintval;
+    long longval;
+    unsigned long ulongval;
+    quad_t quadval;
+    size_t s, newsize = 0;
     u_int kind;
     char fmt[BUFSIZ], buf0[BUFSIZ], buf1[BUFSIZ], *endptr;
     void *newval = NULL;
 
     /* get first argument from lua */
-    len = strlcpy(buf0, luaL_checkstring(L, 1), sizeof(buf0));
-    if (len > sizeof(buf0))
+    s = strlcpy(buf0, luaL_checkstring(L, 1), sizeof(buf0));
+    if (s > sizeof(buf0))
         return (luaL_error(L, "first arg too long"));
 
     /* get second argument from lua */
-    len = strlcpy(buf1, luaL_checkstring(L, 2), sizeof(buf1));
-    if (len > sizeof(buf1))
+    s = strlcpy(buf1, luaL_checkstring(L, 2), sizeof(buf1));
+    if (s > sizeof(buf1))
         return (luaL_error(L, "second arg too long"));
     newval = buf1;
 
-    nlen = name2oid(buf0, oid);
-    if (nlen < 0)
+    len = name2oid(buf0, mib);
+    if (len < 0)
         return (luaL_error(L, "unknown iod '%s'", buf0));
 
-    if (oidfmt(oid, nlen, fmt, &kind))
+    if (oidfmt(mib, len, fmt, &kind))
         return (luaL_error(L, "couldn't find format of oid '%s'", buf0));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
@@ -206,8 +237,58 @@ luaA_sysctl_set(lua_State *L)
             if (endptr == newval || *endptr != '\0')
                 return (luaL_error(L, "invalid integer '%s'", (char *)newval));
         }
+        newval = &intval;
+        newsize = sizeof(intval);
         break;
+    case CTLTYPE_UINT:
+        uintval = (int)strtoul(newval, &endptr, 0);
+        if (endptr == newval || *endptr != '\0')
+            return (luaL_error(L, "invalid unsigned integer '%s'",
+                        (char *)newval));
+        newval = &uintval;
+        newsize = sizeof(uintval);
+        break;
+    case CTLTYPE_LONG:
+        longval = strtol(newval, &endptr, 0);
+        if (endptr == newval || *endptr != '\0')
+            return (luaL_error(L,"invalid long integer '%s'",
+                        (char *)newval));
+        newval = &longval;
+        newsize = sizeof(longval);
+        break;
+    case CTLTYPE_ULONG:
+        ulongval = strtoul(newval, &endptr, 0);
+        if (endptr == newval || *endptr != '\0')
+            return (luaL_error(L, "invalid unsigned long integer '%s'",
+                        (char *)newval));
+        newval = &ulongval;
+        newsize = sizeof(ulongval);
+        break;
+	case CTLTYPE_STRING:
+		break;
+	case CTLTYPE_OPAQUE:
+		if (strcmp(fmt, "T,dev_t") == 0) {
+			set_T_dev_t(L, newval, &newval, &newsize);
+			break;
+		}
+		/* FALLTHROUGH */
+	default:
+        return (luaL_error(L, "oid '%s' is type %d, cannot set that",
+                    buf0, kind & CTLTYPE));
     }
+
+	if (sysctl(mib, len, 0, 0, newval, newsize) == -1) {
+		switch (errno) {
+		case EOPNOTSUPP:
+			return (luaL_error(L, "%s: value is not available", buf0));
+		case ENOTDIR:
+			return (luaL_error(L, "%s: specification is incomplete", buf0));
+		case ENOMEM:
+			return (luaL_error(L, "%s: type is unknown to this program", buf0));
+		default:
+			return (luaL_error(L, "%s", buf0));
+		}
+	}
 
     return (0);
 }
