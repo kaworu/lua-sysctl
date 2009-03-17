@@ -181,7 +181,7 @@ set_T_dev_t(lua_State *L, char *path, void **val, size_t *size)
 static int
 luaA_sysctl_set(lua_State *L)
 {
-    int len, intval, mib[CTL_MAXNAME];
+    int i, len, intval, mib[CTL_MAXNAME];
     unsigned int uintval;
     long longval;
     unsigned long ulongval;
@@ -286,7 +286,11 @@ luaA_sysctl_set(lua_State *L)
 		case ENOMEM:
 			return (luaL_error(L, "%s: type is unknown to this program", buf0));
 		default:
-			return (luaL_error(L, "%s", buf0));
+            i = strerror_r(errno, buf1, sizeof(buf1));
+            if (i != 0)
+			    return (luaL_error(L, "strerror_r(3) failed"));
+            else
+			    return (luaL_error(L, "%s: %s", buf0, buf1));
 		}
 	}
 
