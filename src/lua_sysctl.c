@@ -201,6 +201,7 @@ luaA_sysctl_set(lua_State *L)
     if (s > sizeof(buf1))
         return (luaL_error(L, "second arg too long"));
     newval = buf1;
+    newsize = s;
 
     len = name2oid(buf0, mib);
     if (len < 0)
@@ -265,6 +266,12 @@ luaA_sysctl_set(lua_State *L)
         newsize = sizeof(ulongval);
         break;
 	case CTLTYPE_STRING:
+		break;
+	case CTLTYPE_QUAD:
+		if (sscanf(newval, "%qd", &quadval) == 0)
+            return (luaL_error(L, "invalid quad '%s'", (char *)newval));
+		newval = &quadval;
+		newsize = sizeof(quadval);
 		break;
 	case CTLTYPE_OPAQUE:
 		if (strcmp(fmt, "T,dev_t") == 0) {
@@ -416,7 +423,7 @@ luaA_sysctl_get(lua_State *L)
         /* FALLTHROUGH */
     default:
         free(oval);
-        return (luaL_error(L, "unknown CTLTYPE: fmt=%s, kind=%d", fmt, (kind & CTLTYPE))); // FIXME
+        return (luaL_error(L, "unknown CTLTYPE: fmt=%s, kind=%d", fmt, (kind & CTLTYPE)));
     }
 
     free(oval);
