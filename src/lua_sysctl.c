@@ -157,22 +157,22 @@ T_dev_t(lua_State *L, int l2, void *p)
 static int
 set_T_dev_t(lua_State *L, char *path, void **val, size_t *size)
 {
-	struct stat statb;
+    struct stat statb;
     int rc;
 
-	if (strcmp(path, "none") != 0 && strcmp(path, "off") != 0) {
-		rc = stat(path, &statb);
-		if (rc)
+    if (strcmp(path, "none") != 0 && strcmp(path, "off") != 0) {
+        rc = stat(path, &statb);
+        if (rc)
             return (luaL_error(L, "cannot stat %s", path));
 
-		if (!S_ISCHR(statb.st_mode))
+        if (!S_ISCHR(statb.st_mode))
             return (luaL_error(L, "must specify a device special file."));
-	}
+    }
     else
-		statb.st_rdev = NODEV;
+        statb.st_rdev = NODEV;
 
-	*val = (void *)&statb.st_rdev;
-	*size = sizeof(statb.st_rdev);
+    *val = (void *)&statb.st_rdev;
+    *size = sizeof(statb.st_rdev);
 
     return (1);
 }
@@ -195,7 +195,6 @@ luaA_sysctl_set(lua_State *L)
     s = strlcpy(buf0, luaL_checkstring(L, 1), sizeof(buf0));
     if (s > sizeof(buf0))
         return (luaL_error(L, "first arg too long"));
-
     /* get second argument from lua */
     s = strlcpy(buf1, luaL_checkstring(L, 2), sizeof(buf1));
     if (s > sizeof(buf1))
@@ -225,7 +224,6 @@ luaA_sysctl_set(lua_State *L)
         if (strlen(newval) == 0)
             return (luaL_error(L, "empty numeric value"));
     }
-
 
     switch (kind & CTLTYPE) {
     case CTLTYPE_INT:
@@ -265,41 +263,41 @@ luaA_sysctl_set(lua_State *L)
         newval = &ulongval;
         newsize = sizeof(ulongval);
         break;
-	case CTLTYPE_STRING:
-		break;
-	case CTLTYPE_QUAD:
-		if (sscanf(newval, "%qd", &quadval) == 0)
+    case CTLTYPE_STRING:
+        break;
+    case CTLTYPE_QUAD:
+        if (sscanf(newval, "%qd", &quadval) == 0)
             return (luaL_error(L, "invalid quad '%s'", (char *)newval));
-		newval = &quadval;
-		newsize = sizeof(quadval);
-		break;
-	case CTLTYPE_OPAQUE:
-		if (strcmp(fmt, "T,dev_t") == 0) {
-			set_T_dev_t(L, newval, &newval, &newsize);
-			break;
-		}
-		/* FALLTHROUGH */
-	default:
+        newval = &quadval;
+        newsize = sizeof(quadval);
+        break;
+    case CTLTYPE_OPAQUE:
+        if (strcmp(fmt, "T,dev_t") == 0) {
+            set_T_dev_t(L, newval, &newval, &newsize);
+            break;
+        }
+        /* FALLTHROUGH */
+    default:
         return (luaL_error(L, "oid '%s' is type %d, cannot set that",
                     buf0, kind & CTLTYPE));
     }
 
-	if (sysctl(mib, len, 0, 0, newval, newsize) == -1) {
-		switch (errno) {
-		case EOPNOTSUPP:
-			return (luaL_error(L, "%s: value is not available", buf0));
-		case ENOTDIR:
-			return (luaL_error(L, "%s: specification is incomplete", buf0));
-		case ENOMEM:
-			return (luaL_error(L, "%s: type is unknown to this program", buf0));
-		default:
+    if (sysctl(mib, len, 0, 0, newval, newsize) == -1) {
+        switch (errno) {
+        case EOPNOTSUPP:
+            return (luaL_error(L, "%s: value is not available", buf0));
+        case ENOTDIR:
+            return (luaL_error(L, "%s: specification is incomplete", buf0));
+        case ENOMEM:
+            return (luaL_error(L, "%s: type is unknown to this program", buf0));
+        default:
             i = strerror_r(errno, buf1, sizeof(buf1));
             if (i != 0)
-			    return (luaL_error(L, "strerror_r(3) failed"));
+                return (luaL_error(L, "strerror_r(3) failed"));
             else
-			    return (luaL_error(L, "%s: %s", buf0, buf1));
-		}
-	}
+                return (luaL_error(L, "%s: %s", buf0, buf1));
+        }
+    }
 
     return (0);
 }
@@ -331,7 +329,7 @@ luaA_sysctl_get(lua_State *L)
         return (luaL_error(L, "couldn't find format of oid '%s'", buf));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
-        return (luaL_error(L, "can't handle CTLTYPE_NODE atm")); // FIXME
+        return (luaL_error(L, "can't handle CTLTYPE_NODE"));
 
     /* find an estimate of how much we need for this var */
     len = 0;
@@ -432,6 +430,24 @@ luaA_sysctl_get(lua_State *L)
 }
 
 
+static int
+luaA_sysctl_IK2celsius(lua_State *L)
+{
+
+    lua_pushnumber(L, (luaL_checkinteger(L, 1) - 2732.0) / 10);
+    return (1); /* one returned value */
+}
+
+
+static int
+luaA_sysctl_IK2farenheit(lua_State *L)
+{
+
+    lua_pushnumber(L, (luaL_checkinteger(L, 1) / 10.0) * 1.8 - 459.67);
+    return (1); /* one returned value */
+}
+
+
 /*
  * Lua initialisation stuff
  */
@@ -439,9 +455,11 @@ luaA_sysctl_get(lua_State *L)
 
 static const luaL_reg lua_sysctl[] =
 {
-    {"get",        luaA_sysctl_get},
-    {"set",        luaA_sysctl_set},
-    {NULL,          NULL}
+    {"get",             luaA_sysctl_get},
+    {"set",             luaA_sysctl_set},
+    {"IK2celsius",      luaA_sysctl_IK2celsius},
+    {"IK2farenheit",    luaA_sysctl_IK2farenheit},
+    {NULL,              NULL}
 };
 
 /*
