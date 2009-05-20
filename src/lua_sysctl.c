@@ -193,11 +193,11 @@ luaA_sysctl_set(lua_State *L)
 
     /* get first argument from lua */
     s = strlcpy(buf0, luaL_checkstring(L, 1), sizeof(buf0));
-    if (s > sizeof(buf0))
+    if (s >= sizeof(buf0))
         return (luaL_error(L, "first arg too long"));
     /* get second argument from lua */
     s = strlcpy(buf1, luaL_checkstring(L, 2), sizeof(buf1));
-    if (s > sizeof(buf1))
+    if (s >= sizeof(buf1))
         return (luaL_error(L, "second arg too long"));
     newval = buf1;
     newsize = s;
@@ -206,7 +206,7 @@ luaA_sysctl_set(lua_State *L)
     if (len < 0)
         return (luaL_error(L, "unknown iod '%s'", buf0));
 
-    if (oidfmt(mib, len, fmt, &kind))
+    if (oidfmt(mib, len, fmt, &kind) != 0)
         return (luaL_error(L, "couldn't find format of oid '%s'", buf0));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
@@ -318,14 +318,14 @@ luaA_sysctl_get(lua_State *L)
     bzero(buf, BUFSIZ);
 
     len = strlcpy(buf, luaL_checkstring(L, 1), sizeof(buf)); /* get first argument from lua */
-    if (len > sizeof(buf))
+    if (len >= sizeof(buf))
         return (luaL_error(L, "first arg too long"));
 
     nlen = name2oid(buf, oid);
     if (nlen < 0)
         return (luaL_error(L, "unknown iod '%s'", buf));
 
-    if (oidfmt(oid, nlen, fmt, &kind))
+    if (oidfmt(oid, nlen, fmt, &kind) != 0)
         return (luaL_error(L, "couldn't find format of oid '%s'", buf));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
@@ -337,6 +337,8 @@ luaA_sysctl_get(lua_State *L)
     len += len; /* we want to be sure :-) */
 
     val = oval = malloc(len + 1);
+    if (val == NULL)
+        return (luaL_error(L, "malloc(3) failed"));
 
     i = sysctl(oid, nlen, val, &len, 0, 0);
     if (i || !len) {
