@@ -7,6 +7,7 @@
 #include <sys/vmmeter.h>
 
 #include <errno.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -188,7 +189,8 @@ luaA_sysctl_set(lua_State *L)
     quad_t quadval;
     size_t s, newsize = 0;
     u_int kind;
-    char fmt[BUFSIZ], buf0[BUFSIZ], buf1[BUFSIZ], *endptr;
+    char fmt[BUFSIZ], buf0[BUFSIZ], buf1[BUFSIZ];
+    const char *errmsg;
     void *newval = NULL;
 
     /* get first argument from lua */
@@ -232,34 +234,31 @@ luaA_sysctl_set(lua_State *L)
                 return (luaL_error(L, "invalid value '%s'", (char *)newval));
         }
         else {
-            intval = (int)strtol(newval, &endptr, 0);
-            if (endptr == newval || *endptr != '\0')
-                return (luaL_error(L, "invalid integer '%s'", (char *)newval));
+            intval = (int)strtonum(newval, INT_MIN, INT_MAX, &errmsg);
+            if (errmsg)
+                return (luaL_error(L, "bad integer: %s (%s)", (char *)newval, errmsg));
         }
         newval = &intval;
         newsize = sizeof(intval);
         break;
     case CTLTYPE_UINT:
-        uintval = (int)strtoul(newval, &endptr, 0);
-        if (endptr == newval || *endptr != '\0')
-            return (luaL_error(L, "invalid unsigned integer '%s'",
-                        (char *)newval));
+        uintval = (unsigned int)strtonum(newval, 0, UINT_MAX, &errmsg);
+        if (errmsg)
+            return (luaL_error(L, "bad unsigned integer: %s (%s)", (char *)newval), errmsg);
         newval = &uintval;
         newsize = sizeof(uintval);
         break;
     case CTLTYPE_LONG:
-        longval = strtol(newval, &endptr, 0);
-        if (endptr == newval || *endptr != '\0')
-            return (luaL_error(L,"invalid long integer '%s'",
-                        (char *)newval));
+        longval = (long)strtonum(newval, LONG_MIN, LONG_MAX, &errmsg);
+        if (errmsg)
+            return (luaL_error(L,"bad long integer: %s (%s)", (char *)newval, errmsg));
         newval = &longval;
         newsize = sizeof(longval);
         break;
     case CTLTYPE_ULONG:
-        ulongval = strtoul(newval, &endptr, 0);
-        if (endptr == newval || *endptr != '\0')
-            return (luaL_error(L, "invalid unsigned long integer '%s'",
-                        (char *)newval));
+        ulongval = (unsigned long)strtonum(newval, 0, ULONG_MAX, &errmsg);
+        if (errmsg)
+            return (luaL_error(L, "bad unsigned long integer: %s (%s)", (char *)newval), errmsg);
         newval = &ulongval;
         newsize = sizeof(ulongval);
         break;
@@ -267,7 +266,7 @@ luaA_sysctl_set(lua_State *L)
         break;
     case CTLTYPE_QUAD:
         if (sscanf(newval, "%qd", &quadval) == 0)
-            return (luaL_error(L, "invalid quad '%s'", (char *)newval));
+            return (luaL_error(L, "invalid quad: %s", (char *)newval));
         newval = &quadval;
         newsize = sizeof(quadval);
         break;
