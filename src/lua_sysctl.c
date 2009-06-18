@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h> /* getpagesize(3) */
 
 /* Include the Lua API header files */
 #include "lua.h"
@@ -70,8 +71,6 @@ static int
 S_timeval(lua_State *L, int l2, void *p)
 {
     struct timeval *tv = (struct timeval *)p;
-    time_t tv_sec;
-    char *p1, *p2;
 
     if (l2 != sizeof(*tv))
         return (luaL_error(L, "S_timeval %d != %d", l2, sizeof(*tv)));
@@ -172,7 +171,7 @@ set_T_dev_t(lua_State *L, char *path, void **val, size_t *size)
     else
         statb.st_rdev = NODEV;
 
-    *val = (void *)&statb.st_rdev;
+    *val  = &statb.st_rdev;
     *size = sizeof(statb.st_rdev);
 
     return (1);
@@ -236,7 +235,8 @@ luaA_sysctl_set(lua_State *L)
         else {
             intval = (int)strtonum(newval, INT_MIN, INT_MAX, &errmsg);
             if (errmsg)
-                return (luaL_error(L, "bad integer: %s (%s)", (char *)newval, errmsg));
+                return (luaL_error(L, "bad integer: %s (%s)",
+                            (char *)newval, errmsg));
         }
         newval = &intval;
         newsize = sizeof(intval);
@@ -244,29 +244,34 @@ luaA_sysctl_set(lua_State *L)
     case CTLTYPE_UINT:
         uintval = (unsigned int)strtonum(newval, 0, UINT_MAX, &errmsg);
         if (errmsg)
-            return (luaL_error(L, "bad unsigned integer: %s (%s)", (char *)newval), errmsg);
+            return (luaL_error(L, "bad unsigned integer: %s (%s)",
+                        (char *)newval, errmsg));
         newval = &uintval;
         newsize = sizeof(uintval);
         break;
     case CTLTYPE_LONG:
         longval = (long)strtonum(newval, LONG_MIN, LONG_MAX, &errmsg);
         if (errmsg)
-            return (luaL_error(L,"bad long integer: %s (%s)", (char *)newval, errmsg));
+            return (luaL_error(L,"bad long integer: %s (%s)",
+                        (char *)newval, errmsg));
         newval = &longval;
         newsize = sizeof(longval);
         break;
     case CTLTYPE_ULONG:
         ulongval = (unsigned long)strtonum(newval, 0, ULONG_MAX, &errmsg);
         if (errmsg)
-            return (luaL_error(L, "bad unsigned long integer: %s (%s)", (char *)newval), errmsg);
+            return (luaL_error(L, "bad unsigned long integer: %s (%s)",
+                        (char *)newval, errmsg));
         newval = &ulongval;
         newsize = sizeof(ulongval);
         break;
     case CTLTYPE_STRING:
         break;
     case CTLTYPE_QUAD:
-        if (sscanf(newval, "%qd", &quadval) == 0)
-            return (luaL_error(L, "invalid quad: %s", (char *)newval));
+        quadval = (quad_t)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
+        if (errmsg)
+            return (luaL_error(L, "bad quad_t integer: %s (%s)",
+                        (char *)newval, errmsg));
         newval = &quadval;
         newsize = sizeof(quadval);
         break;
@@ -383,10 +388,16 @@ luaA_sysctl_get(lua_State *L)
             switch (*fmt) {
             case 'I':
             case 'L':
-                lua_pushinteger(L, fmt[1] == 'U' ? umv : mv);
+                if (fmt[1] == 'U')
+                    lua_pushinteger(L, umv);
+                else
+                    lua_pushinteger(L, mv);
                 break;
             case 'Q':
-                lua_pushnumber(L, fmt[1] == 'U' ? umv : mv);
+                if (fmt[1] == 'U')
+                    lua_pushnumber(L, umv);
+                else
+                    lua_pushnumber(L, mv);
                 break;
             }
             lua_settable(L, -3);
