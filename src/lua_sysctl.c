@@ -310,7 +310,7 @@ luaA_sysctl_set(lua_State *L)
 static int
 luaA_sysctl_get(lua_State *L)
 {
-    int nlen, i, oid[CTL_MAXNAME], hexlen;
+    int nlen, i, oid[CTL_MAXNAME];
     size_t len, intlen;
     char fmt[BUFSIZ], buf[BUFSIZ], *val, *oval, *p;
     u_int kind;
@@ -337,7 +337,7 @@ luaA_sysctl_get(lua_State *L)
 
     /* find an estimate of how much we need for this var */
     len = 0;
-    i = sysctl(oid, nlen, 0, &len, 0, 0);
+    (void)sysctl(oid, nlen, 0, &len, 0, 0);
     len += len; /* we want to be sure :-) */
 
     val = oval = malloc(len + 1);
@@ -363,8 +363,9 @@ luaA_sysctl_get(lua_State *L)
         case 'I': intlen = sizeof(int); break;
         case 'L': intlen = sizeof(long); break;
         case 'Q': intlen = sizeof(quad_t); break;
+        default:
+            return (luaL_error(L, "lua_sysctl internal error (bug)"));
         }
-        hexlen = 2 + (intlen * CHAR_BIT + 3) / 4;
         i = 0;
         lua_newtable(L);
         while (len >= intlen) {
@@ -382,6 +383,8 @@ luaA_sysctl_get(lua_State *L)
                 umv = *(u_quad_t *)p;
                 mv = *(quad_t *)p;
                 break;
+            default:
+                return (luaL_error(L, "lua_sysctl internal error (bug)"));
             }
 
             lua_pushinteger(L, i);
@@ -399,6 +402,8 @@ luaA_sysctl_get(lua_State *L)
                 else
                     lua_pushnumber(L, mv);
                 break;
+            default:
+                return (luaL_error(L, "lua_sysctl internal error (bug)"));
             }
             lua_settable(L, -3);
 
@@ -595,3 +600,4 @@ oidfmt(int *oid, int len, char *fmt, u_int *kind)
         strcpy(fmt, (char *)(buf + sizeof(u_int)));
     return (0);
 }
+
