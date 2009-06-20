@@ -1,3 +1,73 @@
+/*   _                                      _   _
+ *  | |_   _  __ _       ___ _   _ ___  ___| |_| |
+ *  | | | | |/ _` |_____/ __| | | / __|/ __| __| |
+ *  | | |_| | (_| |_____\__ \ |_| \__ \ (__| |_| |
+ *  |_|\__,_|\__,_|     |___/\__, |___/\___|\__|_|
+ *                           |___/
+ *
+ * lua-sysctl is a sysctl(3) interface for lua.
+ *
+ *
+ * Copyright (c) 2008-2009, Alexandre Perrin <kaworu@kaworu.ch>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer
+ *    in this position and unchanged.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author may not be used to endorse or promote products
+ *    derived from this software without specific prior written permission
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * This library is basically a modified version of FreeBSD's sysctl(8)
+ *      src/sbin/sysctl/sysctl.c
+ *
+ * Copyright (c) 1993
+ *    The Regents of the University of California.  All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -17,6 +87,7 @@
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
+
 
 static int name2oid(char *name, int *oidp);
 static int oidfmt(int *oid, int len, char *fmt, u_int *kind);
@@ -188,34 +259,35 @@ luaA_sysctl_set(lua_State *L)
     quad_t quadval;
     size_t s, newsize = 0;
     u_int kind;
-    char fmt[BUFSIZ], buf0[BUFSIZ], buf1[BUFSIZ];
+    char fmt[BUFSIZ], key[BUFSIZ], nvalbuf[BUFSIZ];
     const char *errmsg;
     void *newval = NULL;
 
     /* get first argument from lua */
-    s = strlcpy(buf0, luaL_checkstring(L, 1), sizeof(buf0));
-    if (s >= sizeof(buf0))
+    s = strlcpy(key, luaL_checkstring(L, 1), sizeof(key));
+    if (s >= sizeof(key))
         return (luaL_error(L, "first arg too long"));
     /* get second argument from lua */
-    s = strlcpy(buf1, luaL_checkstring(L, 2), sizeof(buf1));
-    if (s >= sizeof(buf1))
+    s = strlcpy(nvalbuf, luaL_checkstring(L, 2), sizeof(nvalbuf));
+    if (s >= sizeof(nvalbuf))
         return (luaL_error(L, "second arg too long"));
-    newval = buf1;
+    newval = nvalbuf;
     newsize = s;
 
-    len = name2oid(buf0, mib);
+    len = name2oid(key, mib);
     if (len < 0)
-        return (luaL_error(L, "unknown iod '%s'", buf0));
+        return (luaL_error(L, "unknown iod '%s'", key));
 
     if (oidfmt(mib, len, fmt, &kind) != 0)
-        return (luaL_error(L, "couldn't find format of oid '%s'", buf0));
+        return (luaL_error(L, "couldn't find format of oid '%s'", key));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
-        return (luaL_error(L, "oid '%s' isn't a leaf node", buf0));
+        return (luaL_error(L, "oid '%s' isn't a leaf node", key));
 
-    if (!(kind & CTLFLAG_WR))
-        return (luaL_error(L, "oid '%s' is %s", buf0,
+    if (!(kind & CTLFLAG_WR)) {
+        return (luaL_error(L, "oid '%s' is %s", key,
                     (kind & CTLFLAG_TUN) ? "read only tunable" : "read only"));
+    }
 
     if ((kind & CTLTYPE) == CTLTYPE_INT ||
             (kind & CTLTYPE) == CTLTYPE_UINT ||
@@ -234,34 +306,38 @@ luaA_sysctl_set(lua_State *L)
         }
         else {
             intval = (int)strtonum(newval, INT_MIN, INT_MAX, &errmsg);
-            if (errmsg)
+            if (errmsg) {
                 return (luaL_error(L, "bad integer: %s (%s)",
                             (char *)newval, errmsg));
+            }
         }
         newval = &intval;
         newsize = sizeof(intval);
         break;
     case CTLTYPE_UINT:
         uintval = (unsigned int)strtonum(newval, 0, UINT_MAX, &errmsg);
-        if (errmsg)
+        if (errmsg) {
             return (luaL_error(L, "bad unsigned integer: %s (%s)",
                         (char *)newval, errmsg));
+        }
         newval = &uintval;
         newsize = sizeof(uintval);
         break;
     case CTLTYPE_LONG:
         longval = (long)strtonum(newval, LONG_MIN, LONG_MAX, &errmsg);
-        if (errmsg)
+        if (errmsg) {
             return (luaL_error(L,"bad long integer: %s (%s)",
                         (char *)newval, errmsg));
+        }
         newval = &longval;
         newsize = sizeof(longval);
         break;
     case CTLTYPE_ULONG:
         ulongval = (unsigned long)strtonum(newval, 0, ULONG_MAX, &errmsg);
-        if (errmsg)
+        if (errmsg) {
             return (luaL_error(L, "bad unsigned long integer: %s (%s)",
                         (char *)newval, errmsg));
+        }
         newval = &ulongval;
         newsize = sizeof(ulongval);
         break;
@@ -269,9 +345,10 @@ luaA_sysctl_set(lua_State *L)
         break;
     case CTLTYPE_QUAD:
         quadval = (quad_t)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
-        if (errmsg)
+        if (errmsg) {
             return (luaL_error(L, "bad quad_t integer: %s (%s)",
                         (char *)newval, errmsg));
+        }
         newval = &quadval;
         newsize = sizeof(quadval);
         break;
@@ -283,23 +360,24 @@ luaA_sysctl_set(lua_State *L)
         /* FALLTHROUGH */
     default:
         return (luaL_error(L, "oid '%s' is type %d, cannot set that",
-                    buf0, kind & CTLTYPE));
+                    key, kind & CTLTYPE));
     }
 
     if (sysctl(mib, len, 0, 0, newval, newsize) == -1) {
         switch (errno) {
         case EOPNOTSUPP:
-            return (luaL_error(L, "%s: value is not available", buf0));
+            return (luaL_error(L, "%s: value is not available", key));
         case ENOTDIR:
-            return (luaL_error(L, "%s: specification is incomplete", buf0));
+            return (luaL_error(L, "%s: specification is incomplete", key));
         case ENOMEM:
-            return (luaL_error(L, "%s: type is unknown to this program", buf0));
+            /* really? with ENOMEM !?! */
+            return (luaL_error(L, "%s: type is unknown to this program", key));
         default:
-            i = strerror_r(errno, buf1, sizeof(buf1));
+            i = strerror_r(errno, nvalbuf, sizeof(nvalbuf));
             if (i != 0)
                 return (luaL_error(L, "strerror_r(3) failed"));
             else
-                return (luaL_error(L, "%s: %s", buf0, buf1));
+                return (luaL_error(L, "%s: %s", key, nvalbuf));
         }
     }
 
@@ -438,7 +516,8 @@ luaA_sysctl_get(lua_State *L)
         /* FALLTHROUGH */
     default:
         free(oval);
-        return (luaL_error(L, "unknown CTLTYPE: fmt=%s, kind=%d", fmt, (kind & CTLTYPE)));
+        return (luaL_error(L, "unknown CTLTYPE: fmt=%s kind=%d",
+                    fmt, (kind & CTLTYPE)));
     }
 
     free(oval);
@@ -488,36 +567,6 @@ luaopen_sysctl_core(lua_State *L)
     luaL_openlib(L, "sysctl", lua_sysctl, 0);
     return (1);
 }
-
-
-/*
- * Copyright (c) 1993
- *    The Regents of the University of California.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 4. Neither the name of the University nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
 
 
 static int
