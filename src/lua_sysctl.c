@@ -7,6 +7,11 @@
  *
  * lua-sysctl is a sysctl(3) interface for lua.
  *
+ * This library is basically a modified version of FreeBSD's sysctl(8)
+ *      src/sbin/sysctl/sysctl.c
+ * Copyright (c) 1993
+ *    The Regents of the University of California.  All rights reserved.
+ *
  *
  * Copyright (c) 2008-2009, Alexandre Perrin <kaworu@kaworu.ch>
  * All rights reserved.
@@ -14,47 +19,17 @@
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer
- *    in this position and unchanged.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
-/*
- * This library is basically a modified version of FreeBSD's sysctl(8)
- *      src/sbin/sysctl/sysctl.c
- *
- * Copyright (c) 1993
- *    The Regents of the University of California.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 4. Neither the name of the University nor the names of its contributors
+ * 4. Neither the name of the author nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
@@ -363,7 +338,7 @@ luaA_sysctl_set(lua_State *L)
                     key, kind & CTLTYPE));
     }
 
-    if (sysctl(mib, len, 0, 0, newval, newsize) == -1) {
+    if (sysctl(mib, len, NULL, NULL, newval, newsize) == -1) {
         switch (errno) {
         case EOPNOTSUPP:
             return (luaL_error(L, "%s: value is not available", key));
@@ -405,24 +380,24 @@ luaA_sysctl_get(lua_State *L)
 
     nlen = name2oid(buf, oid);
     if (nlen < 0)
-        return (luaL_error(L, "unknown iod '%s'", buf));
+        return (luaL_error(L, "unknown iod `%s'", buf));
 
     if (oidfmt(oid, nlen, fmt, &kind) != 0)
-        return (luaL_error(L, "couldn't find format of oid '%s'", buf));
+        return (luaL_error(L, "couldn't find format of oid `%s'", buf));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
         return (luaL_error(L, "can't handle CTLTYPE_NODE"));
 
     /* find an estimate of how much we need for this var */
     len = 0;
-    (void)sysctl(oid, nlen, 0, &len, 0, 0);
+    (void)sysctl(oid, nlen, NULL, &len, NULL, 0);
     len += len; /* we want to be sure :-) */
 
     val = oval = malloc(len + 1);
     if (val == NULL)
         return (luaL_error(L, "malloc(3) failed"));
 
-    i = sysctl(oid, nlen, val, &len, 0, 0);
+    i = sysctl(oid, nlen, val, &len, NULL, 0);
     if (i || !len) {
         free(oval);
         return (luaL_error(L, "sysctl(3) failed"));
