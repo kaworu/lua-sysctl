@@ -65,7 +65,7 @@
 
 
 static int name2oid(char *name, int *oidp);
-static int oidfmt(int *oid, int len, char *fmt, u_int *kind);
+static int oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind);
 static int set_IK(char *str, int *val);
 
 
@@ -253,7 +253,7 @@ luaA_sysctl_set(lua_State *L)
     if (len < 0)
         return (luaL_error(L, "unknown iod '%s'", key));
 
-    if (oidfmt(mib, len, fmt, &kind) != 0)
+    if (oidfmt(mib, len, fmt, sizeof(fmt), &kind) != 0)
         return (luaL_error(L, "couldn't find format of oid '%s'", key));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
@@ -382,7 +382,7 @@ luaA_sysctl_get(lua_State *L)
     if (nlen < 0)
         return (luaL_error(L, "unknown iod `%s'", buf));
 
-    if (oidfmt(oid, nlen, fmt, &kind) != 0)
+    if (oidfmt(oid, nlen, fmt, sizeof(fmt), &kind) != 0)
         return (luaL_error(L, "couldn't find format of oid `%s'", buf));
 
     if ((kind & CTLTYPE) == CTLTYPE_NODE)
@@ -601,7 +601,7 @@ name2oid(char *name, int *oidp)
 
 
 static int
-oidfmt(int *oid, int len, char *fmt, u_int *kind)
+oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind)
 {
     int qoid[CTL_MAXNAME+2];
     u_char buf[BUFSIZ];
@@ -620,8 +620,9 @@ oidfmt(int *oid, int len, char *fmt, u_int *kind)
     if (kind)
         *kind = *(u_int *)buf;
 
-    if (fmt)
-        strcpy(fmt, (char *)(buf + sizeof(u_int)));
+    if (fmt) {
+        if (strlcpy(fmt, (char *)(buf + sizeof(u_int)), fmtsiz) >= fmtsiz)
+            return (1);
+    }
     return (0);
 }
-
