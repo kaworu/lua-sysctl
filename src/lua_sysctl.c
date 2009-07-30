@@ -64,440 +64,442 @@
 #include "lualib.h"
 
 
-static int name2oid(char *name, int *oidp);
-static int oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind);
-static int set_IK(char *str, int *val);
+static int	name2oid(char *name, int *oidp);
+static int	oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind);
+static int	set_IK(char *str, int *val);
 
 
 static int
 S_clockinfo(lua_State *L, int l2, void *p)
 {
-    struct clockinfo *ci = (struct clockinfo *)p;
+	struct clockinfo *ci = (struct clockinfo *)p;
 
-    if (l2 != sizeof(*ci))
-        return (luaL_error(L, "S_clockinfo %d != %d", l2, sizeof(*ci)));
+	if (l2 != sizeof(*ci))
+		return (luaL_error(L, "S_clockinfo %d != %d", l2, sizeof(*ci)));
 
-    lua_newtable(L);
+	lua_newtable(L);
 
-    lua_pushinteger(L, ci->hz);
-    lua_setfield(L, -2, "hz");
-    lua_pushinteger(L, ci->tick);
-    lua_setfield(L, -2, "tick");
-    lua_pushinteger(L, ci->profhz);
-    lua_setfield(L, -2, "profhz");
-    lua_pushinteger(L, ci->stathz);
-    lua_setfield(L, -2, "stathz");
+	lua_pushinteger(L, ci->hz);
+	lua_setfield(L, -2, "hz");
+	lua_pushinteger(L, ci->tick);
+	lua_setfield(L, -2, "tick");
+	lua_pushinteger(L, ci->profhz);
+	lua_setfield(L, -2, "profhz");
+	lua_pushinteger(L, ci->stathz);
+	lua_setfield(L, -2, "stathz");
 
-    return (1);
+	return (1);
 }
 
 
 static int
 S_loadavg(lua_State *L, int l2, void *p)
 {
-    struct loadavg *la = (struct loadavg *)p;
-    int i;
+	struct loadavg *la = (struct loadavg *)p;
+	int i;
 
-    if (l2 != sizeof(*la))
-        return (luaL_error(L, "S_loadavg %d != %d", l2, sizeof(*la)));
+	if (l2 != sizeof(*la))
+		return (luaL_error(L, "S_loadavg %d != %d", l2, sizeof(*la)));
 
-    lua_newtable(L);
+	lua_newtable(L);
 
-    for (i = 0; i < 3; i++) {
-        lua_pushinteger(L, i + 1);
-        lua_pushnumber(L, (double)la->ldavg[i]/(double)la->fscale);
-        lua_settable(L, -3);
-    }
+	for (i = 0; i < 3; i++) {
+		lua_pushinteger(L, i + 1);
+		lua_pushnumber(L, (double)la->ldavg[i] / (double)la->fscale);
+		lua_settable(L, -3);
+	}
 
-    return (1);
+	return (1);
 }
 
 
 static int
 S_timeval(lua_State *L, int l2, void *p)
 {
-    struct timeval *tv = (struct timeval *)p;
+	struct timeval *tv = (struct timeval *)p;
 
-    if (l2 != sizeof(*tv))
-        return (luaL_error(L, "S_timeval %d != %d", l2, sizeof(*tv)));
+	if (l2 != sizeof(*tv))
+		return (luaL_error(L, "S_timeval %d != %d", l2, sizeof(*tv)));
 
-    lua_newtable(L);
+	lua_newtable(L);
 
-    lua_pushinteger(L, tv->tv_sec);
-    lua_setfield(L, -2, "sec");
-    lua_pushinteger(L, tv->tv_usec);
-    lua_setfield(L, -2, "usec");
+	lua_pushinteger(L, tv->tv_sec);
+	lua_setfield(L, -2, "sec");
+	lua_pushinteger(L, tv->tv_usec);
+	lua_setfield(L, -2, "usec");
 
-    return (1);
+	return (1);
 }
 
 
 static int
 S_vmtotal(lua_State *L, int l2, void *p)
 {
-    struct vmtotal *v = (struct vmtotal *)p;
-    int pageKilo = getpagesize() / 1024;
+	struct vmtotal *v = (struct vmtotal *)p;
+	int pageKilo = getpagesize() / 1024;
 
-    if (l2 != sizeof(*v))
-        return (luaL_error(L, "S_vmtotal %d != %d", l2, sizeof(*v)));
+	if (l2 != sizeof(*v))
+		return (luaL_error(L, "S_vmtotal %d != %d", l2, sizeof(*v)));
 
-    lua_newtable(L);
+	lua_newtable(L);
 
-    lua_pushinteger(L, v->t_rq);
-    lua_setfield(L, -2, "rq");
-    lua_pushinteger(L, v->t_dw);
-    lua_setfield(L, -2, "dw");
-    lua_pushinteger(L, v->t_pw);
-    lua_setfield(L, -2, "pw");
-    lua_pushinteger(L, v->t_sl);
-    lua_setfield(L, -2, "sl");
+	lua_pushinteger(L, v->t_rq);
+	lua_setfield(L, -2, "rq");
+	lua_pushinteger(L, v->t_dw);
+	lua_setfield(L, -2, "dw");
+	lua_pushinteger(L, v->t_pw);
+	lua_setfield(L, -2, "pw");
+	lua_pushinteger(L, v->t_sl);
+	lua_setfield(L, -2, "sl");
 
-    lua_pushinteger(L, v->t_vm * pageKilo);
-    lua_setfield(L, -2, "vm");
-    lua_pushinteger(L, v->t_avm * pageKilo);
-    lua_setfield(L, -2, "avm");
+	lua_pushinteger(L, v->t_vm * pageKilo);
+	lua_setfield(L, -2, "vm");
+	lua_pushinteger(L, v->t_avm * pageKilo);
+	lua_setfield(L, -2, "avm");
 
-    lua_pushinteger(L, v->t_rm * pageKilo);
-    lua_setfield(L, -2, "rm");
-    lua_pushinteger(L, v->t_arm * pageKilo);
-    lua_setfield(L, -2, "arm");
+	lua_pushinteger(L, v->t_rm * pageKilo);
+	lua_setfield(L, -2, "rm");
+	lua_pushinteger(L, v->t_arm * pageKilo);
+	lua_setfield(L, -2, "arm");
 
-    lua_pushinteger(L, v->t_vmshr * pageKilo);
-    lua_setfield(L, -2, "vmshr");
-    lua_pushinteger(L, v->t_avmshr * pageKilo);
-    lua_setfield(L, -2, "avmshr");
+	lua_pushinteger(L, v->t_vmshr * pageKilo);
+	lua_setfield(L, -2, "vmshr");
+	lua_pushinteger(L, v->t_avmshr * pageKilo);
+	lua_setfield(L, -2, "avmshr");
 
-    lua_pushinteger(L, v->t_rmshr * pageKilo);
-    lua_setfield(L, -2, "rmshr");
-    lua_pushinteger(L, v->t_armshr * pageKilo);
-    lua_setfield(L, -2, "armshr");
+	lua_pushinteger(L, v->t_rmshr * pageKilo);
+	lua_setfield(L, -2, "rmshr");
+	lua_pushinteger(L, v->t_armshr * pageKilo);
+	lua_setfield(L, -2, "armshr");
 
-    lua_pushinteger(L, v->t_free * pageKilo);
-    lua_setfield(L, -2, "free");
+	lua_pushinteger(L, v->t_free * pageKilo);
+	lua_setfield(L, -2, "free");
 
-    return (1);
+	return (1);
 }
 
 
 static int
 T_dev_t(lua_State *L, int l2, void *p)
 {
-    dev_t *d = (dev_t *)p;
+	dev_t *d = (dev_t *)p;
 
-    if (l2 != sizeof(*d))
-        return (luaL_error(L, "T_dev_t %d != %d", l2, sizeof(*d)));
+	if (l2 != sizeof(*d))
+		return (luaL_error(L, "T_dev_t %d != %d", l2, sizeof(*d)));
 
-    lua_newtable(L);
+	lua_newtable(L);
 
-    if ((int)(*d) != -1) {
-        lua_pushinteger(L, minor(*d));
-        lua_setfield(L, -2, "minor");
-        lua_pushinteger(L, major(*d));
-        lua_setfield(L, -2, "major");
-    }
+	if ((int)(*d) != -1) {
+		lua_pushinteger(L, minor(*d));
+		lua_setfield(L, -2, "minor");
+		lua_pushinteger(L, major(*d));
+		lua_setfield(L, -2, "major");
+	}
 
-    return (1);
+	return (1);
 }
 
 
 static int
 set_T_dev_t(lua_State *L, char *path, void **val, size_t *size)
 {
-    struct stat statb;
-    int rc;
+	struct stat statb;
+	int rc;
 
-    if (strcmp(path, "none") != 0 && strcmp(path, "off") != 0) {
-        rc = stat(path, &statb);
-        if (rc)
-            return (luaL_error(L, "cannot stat %s", path));
+	if (strcmp(path, "none") != 0 && strcmp(path, "off") != 0) {
+		rc = stat(path, &statb);
+		if (rc)
+			return (luaL_error(L, "cannot stat %s", path));
 
-        if (!S_ISCHR(statb.st_mode))
-            return (luaL_error(L, "must specify a device special file."));
-    }
-    else
-        statb.st_rdev = NODEV;
+		if (!S_ISCHR(statb.st_mode))
+			return (luaL_error(L, "must specify a device special file."));
+	} else
+		statb.st_rdev = NODEV;
 
-    *val  = &statb.st_rdev;
-    *size = sizeof(statb.st_rdev);
-
-    return (1);
+	*val  = &statb.st_rdev;
+	*size = sizeof(statb.st_rdev);
+	return (1);
 }
 
 
 static int
 luaA_sysctl_set(lua_State *L)
 {
-    int i, len, intval, mib[CTL_MAXNAME];
-    unsigned int uintval;
-    long longval;
-    unsigned long ulongval;
-    quad_t quadval;
-    size_t s, newsize = 0;
-    u_int kind;
-    char fmt[BUFSIZ], key[BUFSIZ], nvalbuf[BUFSIZ];
-    const char *errmsg;
-    void *newval = NULL;
+	int	i;
+	int	len;
+	int	intval;
+	int	mib[CTL_MAXNAME];
+	unsigned int uintval;
+	u_int	kind;
+	long	longval;
+	unsigned long ulongval;
+	size_t	s;
+	size_t newsize = 0;
+	quad_t	quadval;
+	char	fmt[BUFSIZ];
+	char	key[BUFSIZ];
+	char	nvalbuf[BUFSIZ];
+	const char *errmsg;
+	void	*newval = NULL;
 
-    /* get first argument from lua */
-    s = strlcpy(key, luaL_checkstring(L, 1), sizeof(key));
-    if (s >= sizeof(key))
-        return (luaL_error(L, "first arg too long"));
-    /* get second argument from lua */
-    s = strlcpy(nvalbuf, luaL_checkstring(L, 2), sizeof(nvalbuf));
-    if (s >= sizeof(nvalbuf))
-        return (luaL_error(L, "second arg too long"));
-    newval = nvalbuf;
-    newsize = s;
+	/* get first argument from lua */
+	s = strlcpy(key, luaL_checkstring(L, 1), sizeof(key));
+	if (s >= sizeof(key))
+		return (luaL_error(L, "first arg too long"));
+	/* get second argument from lua */
+	s = strlcpy(nvalbuf, luaL_checkstring(L, 2), sizeof(nvalbuf));
+	if (s >= sizeof(nvalbuf))
+		return (luaL_error(L, "second arg too long"));
+	newval = nvalbuf;
+	newsize = s;
 
-    len = name2oid(key, mib);
-    if (len < 0)
-        return (luaL_error(L, "unknown iod '%s'", key));
+	len = name2oid(key, mib);
+	if (len < 0)
+		return (luaL_error(L, "unknown iod '%s'", key));
+	if (oidfmt(mib, len, fmt, sizeof(fmt), &kind) != 0)
+		return (luaL_error(L, "couldn't find format of oid '%s'", key));
+	if ((kind & CTLTYPE) == CTLTYPE_NODE)
+		return (luaL_error(L, "oid '%s' isn't a leaf node", key));
+	if (!(kind & CTLFLAG_WR)) {
+		return (luaL_error(L, "oid '%s' is %s", key,
+		    (kind & CTLFLAG_TUN) ? "read only tunable" : "read only"));
+	}
+	if ((kind & CTLTYPE) == CTLTYPE_INT	||
+	    (kind & CTLTYPE) == CTLTYPE_UINT	||
+	    (kind & CTLTYPE) == CTLTYPE_LONG	||
+	    (kind & CTLTYPE) == CTLTYPE_ULONG	||
+	    (kind & CTLTYPE) == CTLTYPE_QUAD) {
+		if (strlen(newval) == 0)
+			return (luaL_error(L, "empty numeric value"));
+	}
 
-    if (oidfmt(mib, len, fmt, sizeof(fmt), &kind) != 0)
-        return (luaL_error(L, "couldn't find format of oid '%s'", key));
+	switch (kind & CTLTYPE) {
+	case CTLTYPE_INT:
+		if (strcmp(fmt, "IK") == 0) {
+			if (!set_IK(newval, &intval))
+				return (luaL_error(L, "invalid value '%s'", (char *)newval));
+		} else {
+			intval = (int)strtonum(newval, INT_MIN, INT_MAX, &errmsg);
+			if (errmsg) {
+				return (luaL_error(L, "bad integer: %s (%s)",
+				    (char *)newval, errmsg));
+			}
+		}
+		newval = &intval;
+		newsize = sizeof(intval);
+		break;
+	case CTLTYPE_UINT:
+		uintval = (unsigned int)strtonum(newval, 0, UINT_MAX, &errmsg);
+		if (errmsg) {
+			return (luaL_error(L, "bad unsigned integer: %s (%s)",
+			    (char *)newval, errmsg));
+		}
+		newval = &uintval;
+		newsize = sizeof(uintval);
+		break;
+	case CTLTYPE_LONG:
+		longval = (long)strtonum(newval, LONG_MIN, LONG_MAX, &errmsg);
+		if (errmsg) {
+			return (luaL_error(L,"bad long integer: %s (%s)",
+			    (char *)newval, errmsg));
+		}
+		newval = &longval;
+		newsize = sizeof(longval);
+		break;
+	case CTLTYPE_ULONG:
+		ulongval = (unsigned long)strtonum(newval, 0, ULONG_MAX, &errmsg);
+		if (errmsg) {
+			return (luaL_error(L, "bad unsigned long integer: %s (%s)",
+			    (char *)newval, errmsg));
+		}
+		newval = &ulongval;
+		newsize = sizeof(ulongval);
+		break;
+	case CTLTYPE_STRING:
+		break;
+	case CTLTYPE_QUAD:
+		quadval = (quad_t)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
+		if (errmsg) {
+			return (luaL_error(L, "bad quad_t integer: %s (%s)",
+			    (char *)newval, errmsg));
+		}
+		newval = &quadval;
+		newsize = sizeof(quadval);
+		break;
+	case CTLTYPE_OPAQUE:
+		if (strcmp(fmt, "T,dev_t") == 0) {
+			set_T_dev_t(L, newval, &newval, &newsize);
+			break;
+		}
+		/* FALLTHROUGH */
+	default:
+		return (luaL_error(L, "oid '%s' is type %d, cannot set that",
+		    key, kind & CTLTYPE));
+	}
 
-    if ((kind & CTLTYPE) == CTLTYPE_NODE)
-        return (luaL_error(L, "oid '%s' isn't a leaf node", key));
-
-    if (!(kind & CTLFLAG_WR)) {
-        return (luaL_error(L, "oid '%s' is %s", key,
-                    (kind & CTLFLAG_TUN) ? "read only tunable" : "read only"));
-    }
-
-    if ((kind & CTLTYPE) == CTLTYPE_INT ||
-            (kind & CTLTYPE) == CTLTYPE_UINT ||
-            (kind & CTLTYPE) == CTLTYPE_LONG ||
-            (kind & CTLTYPE) == CTLTYPE_ULONG ||
-            (kind & CTLTYPE) == CTLTYPE_QUAD) {
-        if (strlen(newval) == 0)
-            return (luaL_error(L, "empty numeric value"));
-    }
-
-    switch (kind & CTLTYPE) {
-    case CTLTYPE_INT:
-        if (strcmp(fmt, "IK") == 0) {
-            if (!set_IK(newval, &intval))
-                return (luaL_error(L, "invalid value '%s'", (char *)newval));
-        }
-        else {
-            intval = (int)strtonum(newval, INT_MIN, INT_MAX, &errmsg);
-            if (errmsg) {
-                return (luaL_error(L, "bad integer: %s (%s)",
-                            (char *)newval, errmsg));
-            }
-        }
-        newval = &intval;
-        newsize = sizeof(intval);
-        break;
-    case CTLTYPE_UINT:
-        uintval = (unsigned int)strtonum(newval, 0, UINT_MAX, &errmsg);
-        if (errmsg) {
-            return (luaL_error(L, "bad unsigned integer: %s (%s)",
-                        (char *)newval, errmsg));
-        }
-        newval = &uintval;
-        newsize = sizeof(uintval);
-        break;
-    case CTLTYPE_LONG:
-        longval = (long)strtonum(newval, LONG_MIN, LONG_MAX, &errmsg);
-        if (errmsg) {
-            return (luaL_error(L,"bad long integer: %s (%s)",
-                        (char *)newval, errmsg));
-        }
-        newval = &longval;
-        newsize = sizeof(longval);
-        break;
-    case CTLTYPE_ULONG:
-        ulongval = (unsigned long)strtonum(newval, 0, ULONG_MAX, &errmsg);
-        if (errmsg) {
-            return (luaL_error(L, "bad unsigned long integer: %s (%s)",
-                        (char *)newval, errmsg));
-        }
-        newval = &ulongval;
-        newsize = sizeof(ulongval);
-        break;
-    case CTLTYPE_STRING:
-        break;
-    case CTLTYPE_QUAD:
-        quadval = (quad_t)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
-        if (errmsg) {
-            return (luaL_error(L, "bad quad_t integer: %s (%s)",
-                        (char *)newval, errmsg));
-        }
-        newval = &quadval;
-        newsize = sizeof(quadval);
-        break;
-    case CTLTYPE_OPAQUE:
-        if (strcmp(fmt, "T,dev_t") == 0) {
-            set_T_dev_t(L, newval, &newval, &newsize);
-            break;
-        }
-        /* FALLTHROUGH */
-    default:
-        return (luaL_error(L, "oid '%s' is type %d, cannot set that",
-                    key, kind & CTLTYPE));
-    }
-
-    if (sysctl(mib, len, NULL, NULL, newval, newsize) == -1) {
-        switch (errno) {
-        case EOPNOTSUPP:
-            return (luaL_error(L, "%s: value is not available", key));
-        case ENOTDIR:
-            return (luaL_error(L, "%s: specification is incomplete", key));
-        case ENOMEM:
-            /* really? with ENOMEM !?! */
-            return (luaL_error(L, "%s: type is unknown to this program", key));
-        default:
-            i = strerror_r(errno, nvalbuf, sizeof(nvalbuf));
-            if (i != 0)
-                return (luaL_error(L, "strerror_r(3) failed"));
-            else
-                return (luaL_error(L, "%s: %s", key, nvalbuf));
-        }
-    }
-
-    return (0);
+	if (sysctl(mib, len, NULL, NULL, newval, newsize) == -1) {
+		switch (errno) {
+		case EOPNOTSUPP:
+			return (luaL_error(L, "%s: value is not available", key));
+		case ENOTDIR:
+			return (luaL_error(L, "%s: specification is incomplete", key));
+		case ENOMEM:
+			/* really? with ENOMEM !?! */
+			return (luaL_error(L, "%s: type is unknown to this program", key));
+		default:
+			i = strerror_r(errno, nvalbuf, sizeof(nvalbuf));
+			if (i != 0)
+				return (luaL_error(L, "strerror_r(3) failed"));
+			else
+				return (luaL_error(L, "%s: %s", key, nvalbuf));
+		}
+		/* NOTREACHED */
+	}
+	return (0);
 }
 
 
 static int
 luaA_sysctl_get(lua_State *L)
 {
-    int nlen, i, oid[CTL_MAXNAME];
-    size_t len, intlen;
-    char fmt[BUFSIZ], buf[BUFSIZ], *val, *oval, *p;
-    u_int kind;
-    int (*func)(lua_State *, int, void *);
-    uintmax_t umv;
-    intmax_t mv;
+	int	nlen;
+	int	i;
+	int	oid[CTL_MAXNAME];
+	u_int	kind;
+	size_t	len;
+	size_t	intlen;
+	uintmax_t umv;
+	intmax_t mv;
+	char	fmt[BUFSIZ];
+	char	buf[BUFSIZ];
+	char	*val, *oval, *p;
+	int (*func)(lua_State *, int, void *);
 
-    bzero(fmt, BUFSIZ);
-    bzero(buf, BUFSIZ);
+	bzero(fmt, BUFSIZ);
+	bzero(buf, BUFSIZ);
 
-    len = strlcpy(buf, luaL_checkstring(L, 1), sizeof(buf)); /* get first argument from lua */
-    if (len >= sizeof(buf))
-        return (luaL_error(L, "first arg too long"));
+ 	/* get first argument from lua */
+	len = strlcpy(buf, luaL_checkstring(L, 1), sizeof(buf));
+	if (len >= sizeof(buf))
+		return (luaL_error(L, "first arg too long"));
 
-    nlen = name2oid(buf, oid);
-    if (nlen < 0)
-        return (luaL_error(L, "unknown iod `%s'", buf));
+	nlen = name2oid(buf, oid);
+	if (nlen < 0)
+		return (luaL_error(L, "unknown iod `%s'", buf));
+	if (oidfmt(oid, nlen, fmt, sizeof(fmt), &kind) != 0)
+		return (luaL_error(L, "couldn't find format of oid `%s'", buf));
+	if ((kind & CTLTYPE) == CTLTYPE_NODE)
+		return (luaL_error(L, "can't handle CTLTYPE_NODE"));
 
-    if (oidfmt(oid, nlen, fmt, sizeof(fmt), &kind) != 0)
-        return (luaL_error(L, "couldn't find format of oid `%s'", buf));
+	/* find an estimate of how much we need for this var */
+	len = 0;
+	(void)sysctl(oid, nlen, NULL, &len, NULL, 0);
+	len += len; /* we want to be sure :-) */
+	val = oval = malloc(len + 1);
+	if (val == NULL)
+		return (luaL_error(L, "malloc(3) failed"));
 
-    if ((kind & CTLTYPE) == CTLTYPE_NODE)
-        return (luaL_error(L, "can't handle CTLTYPE_NODE"));
+	i = sysctl(oid, nlen, val, &len, NULL, 0);
+	if (i || !len) {
+		free(oval);
+		return (luaL_error(L, "sysctl(3) failed"));
+	}
+	val[len] = '\0';
 
-    /* find an estimate of how much we need for this var */
-    len = 0;
-    (void)sysctl(oid, nlen, NULL, &len, NULL, 0);
-    len += len; /* we want to be sure :-) */
+	p = val;
+	switch (*fmt) {
+	case 'A':
+		lua_pushstring(L, p);
+		break;
+	case 'I':
+	case 'L':
+	case 'Q':
+		switch (*fmt) {
+		case 'I': intlen = sizeof(int);		break;
+		case 'L': intlen = sizeof(long);	break;
+		case 'Q': intlen = sizeof(quad_t);	break;
+		default:
+			  return (luaL_error(L, "lua_sysctl internal error (bug)"));
+			  /* NOTREACHED */
+		}
+		i = 0;
+		lua_newtable(L);
+		while (len >= intlen) {
+			i++;
+			switch (*fmt) {
+			case 'I':
+				umv = *(u_int *)p;
+				mv = *(int *)p;
+				break;
+			case 'L':
+				umv = *(u_long *)p;
+				mv = *(long *)p;
+				break;
+			case 'Q':
+				umv = *(u_quad_t *)p;
+				mv = *(quad_t *)p;
+				break;
+			default:
+				return (luaL_error(L, "lua_sysctl internal error (bug)"));
+			  	/* NOTREACHED */
+			}
+			lua_pushinteger(L, i);
+			switch (*fmt) {
+			case 'I':
+			case 'L':
+				if (fmt[1] == 'U')
+					lua_pushinteger(L, umv);
+				else
+					lua_pushinteger(L, mv);
+				break;
+			case 'Q':
+				if (fmt[1] == 'U')
+					lua_pushnumber(L, umv);
+				else
+					lua_pushnumber(L, mv);
+				break;
+			default:
+				return (luaL_error(L, "lua_sysctl internal error (bug)"));
+			  	/* NOTREACHED */
+			}
+			lua_settable(L, -3);
+			len -= intlen;
+			p += intlen;
+		}
+		if (i == 1) {
+			lua_pushinteger(L, i);
+			lua_gettable(L, -2);
+			lua_remove(L, lua_gettop(L) - 1); /* remove table */
+		}
+		break;
+	case 'T':
+	case 'S':
+		if (strcmp(fmt, "S,clockinfo") == 0)
+			func = S_clockinfo;
+		else if (strcmp(fmt, "S,loadavg") == 0)
+			func = S_loadavg;
+		else if (strcmp(fmt, "S,timeval") == 0)
+			func = S_timeval;
+		else if (strcmp(fmt, "S,vmtotal") == 0)
+			func = S_vmtotal;
+		else if (strcmp(fmt, "T,dev_t") == 0)
+			func = T_dev_t;
+		else
+			func = NULL;
 
-    val = oval = malloc(len + 1);
-    if (val == NULL)
-        return (luaL_error(L, "malloc(3) failed"));
-
-    i = sysctl(oid, nlen, val, &len, NULL, 0);
-    if (i || !len) {
-        free(oval);
-        return (luaL_error(L, "sysctl(3) failed"));
-    }
-    val[len] = '\0';
-
-    p = val;
-    switch (*fmt) {
-    case 'A':
-        lua_pushstring(L, p);
-        break;
-    case 'I':
-    case 'L':
-    case 'Q':
-        switch (*fmt) {
-        case 'I': intlen = sizeof(int); break;
-        case 'L': intlen = sizeof(long); break;
-        case 'Q': intlen = sizeof(quad_t); break;
-        default:
-            return (luaL_error(L, "lua_sysctl internal error (bug)"));
-        }
-        i = 0;
-        lua_newtable(L);
-        while (len >= intlen) {
-            i++;
-            switch (*fmt) {
-            case 'I':
-                umv = *(u_int *)p;
-                mv = *(int *)p;
-                break;
-            case 'L':
-                umv = *(u_long *)p;
-                mv = *(long *)p;
-                break;
-            case 'Q':
-                umv = *(u_quad_t *)p;
-                mv = *(quad_t *)p;
-                break;
-            default:
-                return (luaL_error(L, "lua_sysctl internal error (bug)"));
-            }
-
-            lua_pushinteger(L, i);
-            switch (*fmt) {
-            case 'I':
-            case 'L':
-                if (fmt[1] == 'U')
-                    lua_pushinteger(L, umv);
-                else
-                    lua_pushinteger(L, mv);
-                break;
-            case 'Q':
-                if (fmt[1] == 'U')
-                    lua_pushnumber(L, umv);
-                else
-                    lua_pushnumber(L, mv);
-                break;
-            default:
-                return (luaL_error(L, "lua_sysctl internal error (bug)"));
-            }
-            lua_settable(L, -3);
-
-            len -= intlen;
-            p += intlen;
-        }
-        if (i == 1) {
-            lua_pushinteger(L, i);
-            lua_gettable(L, -2);
-            lua_remove(L, lua_gettop(L) - 1); /* remove table */
-        }
-        break;
-    case 'T':
-    case 'S':
-        if (strcmp(fmt, "S,clockinfo") == 0)
-            func = S_clockinfo;
-        else if (strcmp(fmt, "S,loadavg") == 0)
-            func = S_loadavg;
-        else if (strcmp(fmt, "S,timeval") == 0)
-            func = S_timeval;
-        else if (strcmp(fmt, "S,vmtotal") == 0)
-            func = S_vmtotal;
-        else if (strcmp(fmt, "T,dev_t") == 0)
-            func = T_dev_t;
-        else
-            func = NULL;
-
-        if (func) {
-            (*func)(L, len, val);
-            break;
-        }
-        /* FALLTHROUGH */
-    default:
-        free(oval);
-        return (luaL_error(L, "unknown CTLTYPE: fmt=%s kind=%d",
-                    fmt, (kind & CTLTYPE)));
-    }
-
-    free(oval);
-    lua_pushstring(L, fmt);
-    return (2); /* two returned value */
+		if (func) {
+			(*func)(L, len, val);
+			break;
+		}
+		/* FALLTHROUGH */
+	default:
+		free(oval);
+		return (luaL_error(L, "unknown CTLTYPE: fmt=%s kind=%d",
+		    fmt, (kind & CTLTYPE)));
+	}
+	free(oval);
+	lua_pushstring(L, fmt);
+	return (2); /* two returned value */
 }
 
 
@@ -505,8 +507,8 @@ static int
 luaA_sysctl_IK2celsius(lua_State *L)
 {
 
-    lua_pushnumber(L, (luaL_checkinteger(L, 1) - 2732.0) / 10);
-    return (1); /* one returned value */
+	lua_pushnumber(L, (luaL_checkinteger(L, 1) - 2732.0) / 10);
+	return (1); /* one returned value */
 }
 
 
@@ -514,8 +516,8 @@ static int
 luaA_sysctl_IK2farenheit(lua_State *L)
 {
 
-    lua_pushnumber(L, (luaL_checkinteger(L, 1) / 10.0) * 1.8 - 459.67);
-    return (1); /* one returned value */
+	lua_pushnumber(L, (luaL_checkinteger(L, 1) / 10.0) * 1.8 - 459.67);
+	return (1); /* one returned value */
 }
 
 
@@ -526,11 +528,11 @@ luaA_sysctl_IK2farenheit(lua_State *L)
 
 static const luaL_reg lua_sysctl[] =
 {
-    {"get",             luaA_sysctl_get},
-    {"set",             luaA_sysctl_set},
-    {"IK2celsius",      luaA_sysctl_IK2celsius},
-    {"IK2farenheit",    luaA_sysctl_IK2farenheit},
-    {NULL,              NULL}
+	{"get",			luaA_sysctl_get},
+	{"set",			luaA_sysctl_set},
+	{"IK2celsius",		luaA_sysctl_IK2celsius},
+	{"IK2farenheit",	luaA_sysctl_IK2farenheit},
+	{NULL,			NULL}
 };
 
 /*
@@ -539,37 +541,39 @@ static const luaL_reg lua_sysctl[] =
 LUALIB_API int
 luaopen_sysctl_core(lua_State *L)
 {
-    luaL_openlib(L, "sysctl", lua_sysctl, 0);
-    return (1);
+
+	luaL_openlib(L, "sysctl", lua_sysctl, 0);
+	return (1);
 }
 
 
 static int
 set_IK(char *str, int *val)
 {
-    float temp;
-    int len, kelv;
-    char *p, *endptr, unit;
+	float	temp;
+	int	len;
+	int	kelv;
+	char	*p, *endptr, unit;
 
-    if ((len = strlen(str)) == 0)
-        return (0);
-    p = &str[len - 1];
-    if (*p == 'C' || *p == 'F') {
-        unit = *p;
-        *p = '\0';
-        temp = strtof(str, &endptr);
-        if (endptr == str || *endptr != '\0')
-            return (0);
-        if (unit == 'F')
-            temp = (temp - 32) * 5 / 9;
-        kelv = temp * 10 + 2732;
-    } else {
-        kelv = (int)strtol(str, &endptr, 10);
-        if (endptr == str || *endptr != '\0')
-            return (0);
-    }
-    *val = kelv;
-    return (1);
+	if ((len = strlen(str)) == 0)
+		return (0);
+	p = &str[len - 1];
+	if (*p == 'C' || *p == 'F') {
+		unit = *p;
+		*p = '\0';
+		temp = strtof(str, &endptr);
+		if (endptr == str || *endptr != '\0')
+			return (0);
+		if (unit == 'F')
+			temp = (temp - 32) * 5 / 9;
+		kelv = temp * 10 + 2732;
+	} else {
+		kelv = (int)strtol(str, &endptr, 10);
+		if (endptr == str || *endptr != '\0')
+			return (0);
+	}
+	*val = kelv;
+	return (1);
 }
 
 /*
@@ -584,45 +588,45 @@ set_IK(char *str, int *val)
 static int
 name2oid(char *name, int *oidp)
 {
-    int oid[2];
-    int i;
-    size_t j;
+	int oid[2];
+	int i;
+	size_t j;
 
-    oid[0] = 0;
-    oid[1] = 3;
+	oid[0] = 0;
+	oid[1] = 3;
 
-    j = CTL_MAXNAME * sizeof(int);
-    i = sysctl(oid, 2, oidp, &j, name, strlen(name));
-    if (i < 0)
-        return (i);
-    j /= sizeof(int);
-    return (j);
+	j = CTL_MAXNAME * sizeof(int);
+	i = sysctl(oid, 2, oidp, &j, name, strlen(name));
+	if (i < 0)
+		return (i);
+	j /= sizeof(int);
+	return (j);
 }
 
 
 static int
 oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind)
 {
-    int qoid[CTL_MAXNAME+2];
-    u_char buf[BUFSIZ];
-    int i;
-    size_t j;
+	int qoid[CTL_MAXNAME+2];
+	u_char buf[BUFSIZ];
+	int i;
+	size_t j;
 
-    qoid[0] = 0;
-    qoid[1] = 4;
-    memcpy(qoid + 2, oid, len * sizeof(int));
+	qoid[0] = 0;
+	qoid[1] = 4;
+	memcpy(qoid + 2, oid, len * sizeof(int));
 
-    j = sizeof(buf);
-    i = sysctl(qoid, len + 2, buf, &j, 0, 0);
-    if (i)
-        return (1);
+	j = sizeof(buf);
+	i = sysctl(qoid, len + 2, buf, &j, 0, 0);
+	if (i)
+		return (1);
 
-    if (kind)
-        *kind = *(u_int *)buf;
+	if (kind)
+		*kind = *(u_int *)buf;
 
-    if (fmt) {
-        if (strlcpy(fmt, (char *)(buf + sizeof(u_int)), fmtsiz) >= fmtsiz)
-            return (1);
-    }
-    return (0);
+	if (fmt) {
+		if (strlcpy(fmt, (char *)(buf + sizeof(u_int)), fmtsiz) >= fmtsiz)
+			return (1);
+	}
+	return (0);
 }
