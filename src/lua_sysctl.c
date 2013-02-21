@@ -57,6 +57,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h> /* getpagesize(3) */
+#include <inttypes.h>
 
 /* Include the Lua API header files */
 #include "lua.h"
@@ -67,6 +68,15 @@
 static int	name2oid(char *name, int *oidp);
 static int	oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind);
 static int	set_IK(char *str, int *val);
+
+static int ctl_size[CTLTYPE+1] = {
+	[CTLTYPE_INT] = sizeof(int),
+	[CTLTYPE_UINT] = sizeof(u_int),
+	[CTLTYPE_LONG] = sizeof(long),
+	[CTLTYPE_ULONG] = sizeof(u_long),
+	[CTLTYPE_S64] = sizeof(int64_t),
+	[CTLTYPE_U64] = sizeof(int64_t),
+};
 
 
 static int
@@ -235,7 +245,8 @@ luaA_sysctl_set(lua_State *L)
 	unsigned long ulongval;
 	size_t	s;
 	size_t newsize = 0;
-	quad_t	quadval;
+	int64_t i64val;
+	uint64_t u64val;
 	char	fmt[BUFSIZ];
 	char	key[BUFSIZ];
 	char	nvalbuf[BUFSIZ];
@@ -268,7 +279,8 @@ luaA_sysctl_set(lua_State *L)
 	    (kind & CTLTYPE) == CTLTYPE_UINT	||
 	    (kind & CTLTYPE) == CTLTYPE_LONG	||
 	    (kind & CTLTYPE) == CTLTYPE_ULONG	||
-	    (kind & CTLTYPE) == CTLTYPE_QUAD) {
+	    (kind & CTLTYPE) == CTLTYPE_S64	||
+	    (kind & CTLTYPE) == CTLTYPE_U64) {
 		if (strlen(newval) == 0)
 			return (luaL_error(L, "empty numeric value"));
 	}
@@ -317,14 +329,23 @@ luaA_sysctl_set(lua_State *L)
 		break;
 	case CTLTYPE_STRING:
 		break;
-	case CTLTYPE_QUAD:
-		quadval = (quad_t)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
+	case CTLTYPE_S64:
+		i64val = (unsigned long long)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
 		if (errmsg) {
-			return (luaL_error(L, "bad quad_t integer: %s (%s)",
+			return (luaL_error(L, "bad int64_t integer: %s (%s)",
 			    (char *)newval, errmsg));
 		}
-		newval = &quadval;
-		newsize = sizeof(quadval);
+		newval = &i64val;
+		newsize = sizeof(i64val);
+		break;
+	case CTLTYPE_U64:
+		u64val = (unsigned long long)strtonum(newval, 0, LLONG_MAX, &errmsg);
+		if (errmsg) {
+			return (luaL_error(L, "bad uint64_t integer: %s (%s)",
+			    (char *)newval, errmsg));
+		}
+		newval = &u64val;
+		newsize = sizeof(u64val);
 		break;
 	case CTLTYPE_OPAQUE:
 		if (strcmp(fmt, "T,dev_t") == 0) {
@@ -365,6 +386,7 @@ luaA_sysctl_get(lua_State *L)
 	int	nlen;
 	int	i;
 	int	oid[CTL_MAXNAME];
+	int	ctltype;
 	u_int	kind;
 	size_t	len;
 	size_t	intlen;
@@ -378,7 +400,7 @@ luaA_sysctl_get(lua_State *L)
 	bzero(fmt, BUFSIZ);
 	bzero(buf, BUFSIZ);
 
- 	/* get first argument from lua */
+	/* get first argument from lua */
 	len = strlcpy(buf, luaL_checkstring(L, 1), sizeof(buf));
 	if (len >= sizeof(buf))
 		return (luaL_error(L, "first arg too long"));
@@ -406,6 +428,9 @@ luaA_sysctl_get(lua_State *L)
 	}
 	val[len] = '\0';
 
+	ctltype = (kind & CTLTYPE);
+	intlen = ctl_size[ctltype];
+
 	p = val;
 	switch (*fmt) {
 	case 'A':
@@ -414,14 +439,6 @@ luaA_sysctl_get(lua_State *L)
 	case 'I':
 	case 'L':
 	case 'Q':
-		switch (*fmt) {
-		case 'I': intlen = sizeof(int);		break;
-		case 'L': intlen = sizeof(long);	break;
-		case 'Q': intlen = sizeof(quad_t);	break;
-		default:
-			  return (luaL_error(L, "lua_sysctl internal error (bug)"));
-			  /* NOTREACHED */
-		}
 		i = 0;
 		lua_newtable(L);
 		while (len >= intlen) {
@@ -436,8 +453,8 @@ luaA_sysctl_get(lua_State *L)
 				mv = *(long *)p;
 				break;
 			case 'Q':
-				umv = *(u_quad_t *)p;
-				mv = *(quad_t *)p;
+				umv = *(uint64_t *)p;
+				mv = *(int64_t *)p;
 				break;
 			default:
 				return (luaL_error(L, "lua_sysctl internal error (bug)"));
