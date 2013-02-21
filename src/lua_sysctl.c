@@ -75,6 +75,7 @@ static int ctl_size[CTLTYPE+1] = {
 	[CTLTYPE_LONG] = sizeof(long),
 	[CTLTYPE_ULONG] = sizeof(u_long),
 	[CTLTYPE_S64] = sizeof(int64_t),
+	/* XXX: shouldn't this be sizeof(uint64_t) for CTLTYPE_U64 ? */
 	[CTLTYPE_U64] = sizeof(int64_t),
 };
 
@@ -330,6 +331,7 @@ luaA_sysctl_set(lua_State *L)
 	case CTLTYPE_STRING:
 		break;
 	case CTLTYPE_S64:
+		/* using long long is ok here, it is guaranteed >= 64bits */
 		i64val = (unsigned long long)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
 		if (errmsg) {
 			return (luaL_error(L, "bad int64_t integer: %s (%s)",
