@@ -3,7 +3,7 @@ BUILDDIR = build
 SOLIB    = ${BUILDDIR}/core.so
 DESTDIR ?= sysctl
 
-LDFLAGS += -shared -soname ${SONAME}
+LDFLAGS += -shared -Wl,-soname,${SONAME}
 CFLAGS  += -Wall -Wextra -fPIC `pkg-config --cflags lua-5.1`
 
 all: ${SOLIB}
