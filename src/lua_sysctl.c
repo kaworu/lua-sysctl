@@ -74,9 +74,13 @@ static int ctl_size[CTLTYPE+1] = {
 	[CTLTYPE_UINT] = sizeof(u_int),
 	[CTLTYPE_LONG] = sizeof(long),
 	[CTLTYPE_ULONG] = sizeof(u_long),
+#if __FreeBSD_version < 900000
+	[CTLTYPE_QUAD] = sizeof(quad_t),
+#else
 	[CTLTYPE_S64] = sizeof(int64_t),
 	/* XXX: shouldn't this be sizeof(uint64_t) for CTLTYPE_U64 ? */
 	[CTLTYPE_U64] = sizeof(int64_t),
+#endif
 };
 
 
@@ -246,8 +250,12 @@ luaA_sysctl_set(lua_State *L)
 	unsigned long ulongval;
 	size_t	s;
 	size_t newsize = 0;
+#if __FreeBSD_version < 900000
+	quad_t	quadval;
+#else
 	int64_t i64val;
 	uint64_t u64val;
+#endif
 	char	fmt[BUFSIZ];
 	char	key[BUFSIZ];
 	char	nvalbuf[BUFSIZ];
@@ -280,8 +288,12 @@ luaA_sysctl_set(lua_State *L)
 	    (kind & CTLTYPE) == CTLTYPE_UINT	||
 	    (kind & CTLTYPE) == CTLTYPE_LONG	||
 	    (kind & CTLTYPE) == CTLTYPE_ULONG	||
-	    (kind & CTLTYPE) == CTLTYPE_S64	||
-	    (kind & CTLTYPE) == CTLTYPE_U64) {
+#if __FreeBSD_version < 900000
+	    (kind & CTLTYPE) == CTLTYPE_QUAD
+#else
+	    (kind & CTLTYPE) == CTLTYPE_S64 || (kind & CTLTYPE) == CTLTYPE_U64
+#endif
+	) {
 		if (strlen(newval) == 0)
 			return (luaL_error(L, "empty numeric value"));
 	}
@@ -330,6 +342,17 @@ luaA_sysctl_set(lua_State *L)
 		break;
 	case CTLTYPE_STRING:
 		break;
+#if __FreeBSD_version < 900000
+	case CTLTYPE_QUAD:
+		quadval = (quad_t)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
+		if (errmsg) {
+			return (luaL_error(L, "bad quad_t integer: %s (%s)",
+			    (char *)newval, errmsg));
+		}
+		newval = &quadval;
+		newsize = sizeof(quadval);
+		break;
+#else
 	case CTLTYPE_S64:
 		/* using long long is ok here, it is guaranteed >= 64bits */
 		i64val = (unsigned long long)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
@@ -341,6 +364,8 @@ luaA_sysctl_set(lua_State *L)
 		newsize = sizeof(i64val);
 		break;
 	case CTLTYPE_U64:
+		/* XXX: this is not ok though, LLONG_MAX stand for the maximum
+		 * value of a *signed* >=64bits integer. */
 		u64val = (unsigned long long)strtonum(newval, 0, LLONG_MAX, &errmsg);
 		if (errmsg) {
 			return (luaL_error(L, "bad uint64_t integer: %s (%s)",
@@ -349,6 +374,7 @@ luaA_sysctl_set(lua_State *L)
 		newval = &u64val;
 		newsize = sizeof(u64val);
 		break;
+#endif
 	case CTLTYPE_OPAQUE:
 		if (strcmp(fmt, "T,dev_t") == 0) {
 			set_T_dev_t(L, newval, &newval, &newsize);
@@ -455,8 +481,13 @@ luaA_sysctl_get(lua_State *L)
 				mv = *(long *)p;
 				break;
 			case 'Q':
+#if __FreeBSD_version < 900000
+				umv = *(u_quad_t *)p;
+				mv = *(quad_t *)p;
+#else
 				umv = *(uint64_t *)p;
 				mv = *(int64_t *)p;
+#endif
 				break;
 			default:
 				return (luaL_error(L, "lua_sysctl internal error (bug)"));
