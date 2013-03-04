@@ -69,7 +69,7 @@ static int	name2oid(char *name, int *oidp);
 static int	oidfmt(int *oid, int len, char *fmt, size_t fmtsiz, u_int *kind);
 static int	set_IK(char *str, int *val);
 
-static int ctl_size[CTLTYPE+1] = {
+static int ctl_size[CTLTYPE + 1] = {
 	[CTLTYPE_INT] = sizeof(int),
 	[CTLTYPE_UINT] = sizeof(u_int),
 	[CTLTYPE_LONG] = sizeof(long),
@@ -456,35 +456,51 @@ luaA_sysctl_get(lua_State *L)
 	}
 	val[len] = '\0';
 
+	p = val;
 	ctltype = (kind & CTLTYPE);
 	intlen = ctl_size[ctltype];
 
-	p = val;
-	switch (*fmt) {
-	case 'A':
+	switch (ctltype) {
+	case CTLTYPE_STRING:
 		lua_pushstring(L, p);
 		break;
-	case 'I':
-	case 'L':
-	case 'Q':
+	case CTLTYPE_INT:    /* FALLTHROUGH */
+	case CTLTYPE_UINT:   /* FALLTHROUGH */
+	case CTLTYPE_LONG:   /* FALLTHROUGH */
+	case CTLTYPE_ULONG:  /* FALLTHROUGH */
+#if __FreeBSD_version < 900000
+	case CTLTYPE_QUAD:
+#else
+	case CTLTYPE_S64:    /* FALLTHROUGH */
+	case CTLTYPE_U64:
+#endif
+		/* an intlen of 0 or less will make us loop indefinitely */
+		if (intlen <= 0) {
+			free(oval);
+			return (luaL_error(L, "lua_sysctl internal error (intlen == %zd)", intlen));
+		}
 		i = 0;
 		lua_newtable(L);
 		while (len >= intlen) {
 			i++;
-			switch (*fmt) {
-			case 'I':
+			switch (ctltype) {
+			case CTLTYPE_INT:  /* FALLTHROUGH */
+			case CTLTYPE_UINT:
 				umv = *(u_int *)p;
 				mv = *(int *)p;
 				break;
-			case 'L':
+			case CTLTYPE_LONG:   /* FALLTHROUGH */
+			case CTLTYPE_ULONG:
 				umv = *(u_long *)p;
 				mv = *(long *)p;
 				break;
-			case 'Q':
 #if __FreeBSD_version < 900000
+			case CTLTYPE_QUAD:
 				umv = *(u_quad_t *)p;
 				mv = *(quad_t *)p;
 #else
+			case CTLTYPE_S64: /* FALLTHROUGH */
+			case CTLTYPE_U64:
 				umv = *(uint64_t *)p;
 				mv = *(int64_t *)p;
 #endif
@@ -494,20 +510,27 @@ luaA_sysctl_get(lua_State *L)
 			  	/* NOTREACHED */
 			}
 			lua_pushinteger(L, i);
-			switch (*fmt) {
-			case 'I':
-			case 'L':
-				if (fmt[1] == 'U')
-					lua_pushinteger(L, umv);
-				else
-					lua_pushinteger(L, mv);
+			switch (ctltype) {
+			case CTLTYPE_INT:  /* FALLTHROUGH */
+			case CTLTYPE_LONG:
+				lua_pushinteger(L, mv);
 				break;
-			case 'Q':
-				if (fmt[1] == 'U')
-					lua_pushnumber(L, umv);
-				else
-					lua_pushnumber(L, mv);
+			case CTLTYPE_UINT: /* FALLTHROUGH */
+			case CTLTYPE_ULONG:
+				lua_pushinteger(L, umv);
 				break;
+#if __FreeBSD_version < 900000
+			case CTLTYPE_QUAD:
+				lua_pushnumber(L, mv);
+				break;
+#else
+			case CTLTYPE_S64:
+				lua_pushnumber(L, mv);
+				break;
+			case CTLTYPE_U64:
+				lua_pushnumber(L, umv);
+				break;
+#endif
 			default:
 				return (luaL_error(L, "lua_sysctl internal error (bug)"));
 			  	/* NOTREACHED */
@@ -522,8 +545,7 @@ luaA_sysctl_get(lua_State *L)
 			lua_remove(L, lua_gettop(L) - 1); /* remove table */
 		}
 		break;
-	case 'T':
-	case 'S':
+	case CTLTYPE_OPAQUE:
 		if (strcmp(fmt, "S,clockinfo") == 0)
 			func = S_clockinfo;
 		else if (strcmp(fmt, "S,loadavg") == 0)
@@ -544,8 +566,8 @@ luaA_sysctl_get(lua_State *L)
 		/* FALLTHROUGH */
 	default:
 		free(oval);
-		return (luaL_error(L, "unknown CTLTYPE: fmt=%s kind=%d",
-		    fmt, (kind & CTLTYPE)));
+		return (luaL_error(L, "unknown CTLTYPE: fmt=%s ctltype=%d",
+		    fmt, ctltype));
 	}
 	free(oval);
 	lua_pushstring(L, fmt);
