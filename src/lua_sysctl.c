@@ -251,11 +251,13 @@ luaA_sysctl_set(lua_State *L)
 #else
 	int64_t i64val;
 	uint64_t u64val;
+	intmax_t intmaxval;
+	uintmax_t uintmaxval;
 #endif
 	char	fmt[BUFSIZ];
 	char	oid[BUFSIZ];
 	char	nvalbuf[BUFSIZ];
-	const char *errmsg;
+	char	*endptr;
 	void	*newval = NULL;
 
 	/* get first argument from lua */
@@ -303,38 +305,38 @@ luaA_sysctl_set(lua_State *L)
 			if (!set_IK(newval, &intval))
 				return (luaL_error(L, "invalid value '%s'", (char *)newval));
 		} else {
-			intval = (int)strtonum(newval, INT_MIN, INT_MAX, &errmsg);
-			if (errmsg) {
-				return (luaL_error(L, "invalid integer: '%s'",
-				    (char *)newval, errmsg));
+			longval = strtol(newval, &endptr, 0);
+			if (endptr == newval || *endptr != '\0' ||
+					longval > INT_MAX || longval < INT_MIN) {
+				return (luaL_error(L, "invalid integer: '%s'", (char *)newval));
 			}
+			intval = (int)longval;
 		}
 		newval = &intval;
 		newsize = sizeof(intval);
 		break;
 	case CTLTYPE_UINT:
-		uintval = (unsigned int)strtonum(newval, 0, UINT_MAX, &errmsg);
-		if (errmsg) {
-			return (luaL_error(L, "invalid unsigned integer: '%s'",
-			    (char *)newval, errmsg));
+		ulongval = strtoul(newval, &endptr, 0);
+		if (endptr == newval || *endptr != '\0' || ulongval > UINT_MAX) {
+			return (luaL_error(L, "invalid unsigned integer: '%s'", (char *)newval));
 		}
+		uintval = (unsigned int)ulongval;
 		newval = &uintval;
 		newsize = sizeof(uintval);
 		break;
 	case CTLTYPE_LONG:
-		longval = (long)strtonum(newval, LONG_MIN, LONG_MAX, &errmsg);
-		if (errmsg) {
-			return (luaL_error(L,"invalid long integer: '%s'",
-			    (char *)newval, errmsg));
+		longval = strtol(newval, &endptr, 0);
+		if (endptr == newval || *endptr != '\0') {
+			return (luaL_error(L, "invalid long integer: '%s'", (char *)newval));
 		}
 		newval = &longval;
 		newsize = sizeof(longval);
 		break;
 	case CTLTYPE_ULONG:
-		ulongval = (unsigned long)strtonum(newval, 0, ULONG_MAX, &errmsg);
-		if (errmsg) {
+		ulongval = strtoul(newval, &endptr, 0);
+		if (endptr == newval || *endptr != '\0') {
 			return (luaL_error(L, "invalid unsigned long integer: '%s'",
-			    (char *)newval, errmsg));
+					(char *)newval));
 		}
 		newval = &ulongval;
 		newsize = sizeof(ulongval);
@@ -343,33 +345,30 @@ luaA_sysctl_set(lua_State *L)
 		break;
 #if __FreeBSD_version < 900000
 	case CTLTYPE_QUAD:
-		quadval = (quad_t)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
-		if (errmsg) {
-			return (luaL_error(L, "invalid quad_t integer: '%s'",
-			    (char *)newval, errmsg));
+		quadval = strtoq(newval, &endptr, 0);
+		if (endptr == newval || *endptr != '\0') {
+			return (luaL_error(L, "invalid quad_t: '%s'", (char *)newval));
 		}
 		newval = &quadval;
 		newsize = sizeof(quadval);
 		break;
 #else
 	case CTLTYPE_S64:
-		/* using long long is ok here, it is guaranteed >= 64bits */
-		i64val = (unsigned long long)strtonum(newval, LLONG_MIN, LLONG_MAX, &errmsg);
-		if (errmsg) {
-			return (luaL_error(L, "invalid int64_t integer: '%s'",
-			    (char *)newval, errmsg));
+		intmaxval = strtoimax(newval, &endptr, 0);
+		if (endptr == newval || *endptr != '\0' ||
+				intmaxval > INT64_MAX || intmaxval < INT64_MIN) {
+			return (luaL_error(L, "invalid int64_t integer: '%s'", (char *)newval));
 		}
+		i64val = (int64_t)intmaxval;
 		newval = &i64val;
 		newsize = sizeof(i64val);
 		break;
 	case CTLTYPE_U64:
-		/* XXX: this is not ok though, LLONG_MAX stand for the maximum
-		 * value of a *signed* >=64bits integer. */
-		u64val = (unsigned long long)strtonum(newval, 0, LLONG_MAX, &errmsg);
-		if (errmsg) {
-			return (luaL_error(L, "invalid uint64_t integer: '%s'",
-			    (char *)newval, errmsg));
+		uintmaxval = strtoumax(newval, &endptr, 0);
+		if (endptr == newval || *endptr != '\0' || uintmaxval > UINT64_MAX) {
+			return (luaL_error(L, "invalid int64_t integer: '%s'", (char *)newval));
 		}
+		u64val = (uint64_t)uintmaxval;
 		newval = &u64val;
 		newsize = sizeof(u64val);
 		break;
@@ -621,21 +620,19 @@ luaopen_sysctl_core(lua_State *L)
 static int
 set_IK(char *str, int *val)
 {
-	float	temp;
-	int	len;
-	int	kelv;
-	char	*p, *endptr, unit;
+	float temp;
+	int len, kelv;
+	const char *p;
+	char *endptr;
 
 	if ((len = strlen(str)) == 0)
 		return (0);
 	p = &str[len - 1];
 	if (*p == 'C' || *p == 'F') {
-		unit = *p;
-		*p = '\0';
 		temp = strtof(str, &endptr);
-		if (endptr == str || *endptr != '\0')
+		if (endptr == str || endptr != p)
 			return (0);
-		if (unit == 'F')
+		if (*p == 'F')
 			temp = (temp - 32) * 5 / 9;
 		kelv = temp * 10 + 2732;
 	} else {
