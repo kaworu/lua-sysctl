@@ -15,7 +15,45 @@ Thanks to garga@ **lua-sysctl** is in the port tree under _devel/lua-sysctl_.
 
 ## Examples
 
-TODO ! :)
+Reading:
+```
+> require('sysctl')
+> val, type = sysctl.get('kern.ostype') -- reading a string
+> print(val)
+FreeBSD
+> print(type)
+A
+> val, type = sysctl.get('kern.maxvnodes') -- reading a integer value
+> print(val)
+111376
+> print(type)
+I
+> table, type = sysctl.get('vm.vmtotal') -- reading a special type value (which will be a table in Lua)
+> print(table)
+table: 0x801415800
+> print(type)
+S,vmtotal
+> for k,v in pairs(table) do print(k,v) end
+sl  20
+rm  81264
+avmshr  6884
+dw  0
+free    1601444
+pw  0
+armshr  6252
+vmshr   22048
+rmshr   7204
+arm 35104
+rq  1
+vm  1074232888
+avm 420396
+```
+
+Writting:
+```
+> require('sysctl')
+> sysctl.set('security.bsd.see_other_uids', 0)
+```
 
 ## Limitations
 
