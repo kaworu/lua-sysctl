@@ -9,11 +9,11 @@
  *
  * This library is basically a modified version of FreeBSD's sysctl(8)
  *      src/sbin/sysctl/sysctl.c
+ *
  * Copyright (c) 1993
  *    The Regents of the University of California.  All rights reserved.
- *
- * Copyright (c) 2008-2013, Alexandre Perrin <kaworu@kaworu.ch>
- * All rights reserved.
+ * Copyright (c) 2008-2013
+ *    Alexandre Perrin <kaworu@kaworu.ch>.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
