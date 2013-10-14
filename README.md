@@ -57,7 +57,7 @@ Writting:
 
 ## Limitations
 
-* Some sysctl variablse cannot be changed while the system is running (they're "read-only tunable").
+* Some sysctl variables cannot be changed while the system is running (they're "read-only tunable").
 * You need root privilege to change sysctl variables
 * Some variables cannot be changed from inside a jail (and might depend of the securelevel too).
 
