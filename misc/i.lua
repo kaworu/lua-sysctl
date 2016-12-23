@@ -1,4 +1,4 @@
 #!/usr/bin/env lua
-require('sysctl')
+sysctl = require('sysctl')
 g = sysctl.get
 s = sysctl.set

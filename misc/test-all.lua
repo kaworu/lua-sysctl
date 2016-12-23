@@ -5,7 +5,7 @@
 --
 --  note that some value can't be returned (like "S,proc" struct proc).
 ]]
-require('sysctl')
+local sysctl = require('sysctl')
 
 function show()
     local sctl, stype = sysctl.get(key)
