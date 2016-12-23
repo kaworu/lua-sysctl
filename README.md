@@ -20,6 +20,9 @@ For more informations about sysctl see:
 
 Thanks to garga@ **lua-sysctl** is in the port tree under _devel/lua-sysctl_.
 
+NOTE: development is done on `master` branch, look for the branch matching your
+lua version if you want to build.
+
 ## Examples
 
 Reading:
