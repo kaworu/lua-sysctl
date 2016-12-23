@@ -20,6 +20,9 @@ For more informations about sysctl see:
 
 Thanks to garga@ **lua-sysctl** is in the port tree under _devel/lua-sysctl_.
 
+NOTE: development is done on `master` branch, look for the branch matching your
+lua version if you want to build.
+
 ## Examples
 
 Reading:
@@ -61,6 +64,51 @@ Writting:
 > require('sysctl')
 > sysctl.set('security.bsd.see_other_uids', 0)
 ```
+
+## Functions
+
+NOTE: Both sysctl.get() and sysctl.set() raise an error if any problem occur.
+If you don't control the key you're passing to these function you might want to
+use lua's protected calls (pcall).
+
+### sysctl.get(key)
+Rreturns two values: The first returned value is the sysctl(3) value, the
+second value is the format.
+
+#### formats
+- _I_ `int`
+- _UI_ `unsigned int`
+- _IK_ `int`, in (kelv * 10) (used to get temperature)
+- _L_ `long`
+- _UL_ `unsigned long`
+- _A_ `char *`
+- _S,clockinfo_ `struct clockinfo`
+- _S,loadavg_ `struct loadavg`
+- _S,timeval_ `struct timeval`
+- _S,vmtotal_ `struct vmtotal`
+
+In lua land, it means that:
+- _I_, _UI_, _IK_, _L_, _UL_, are numbers.
+- _A_ is a string.
+- _S,clockinfo_ is a table of integers
+  `{ hz, tick, profhz, stathz }`
+- _S,loadavg_ is an array of numbers
+  `{ 1, 2, 3 }`
+- _S,timeval_ is a table of integers
+  `{ sec, sec }`
+- _S,vmtotal_ is a table of integers
+  `{ rq, dw, pw, sl, vm, avm, rm, arm, vmshr, avmshr, rmshr, armshr, free }`
+
+### sysctl.set(key, newval)
+Set the sysctl's key to newval. Return nothing and throw lua error if any
+problem occur. Note that some sysctl's key are read only or read only tunable
+and can not be set at runtime.
+
+### sysctl.IK2celsius(kelv)
+Convert a sysctl's IK value into celsius and return it.
+
+### sysctl.IK2farenheit(kelv)
+convert a sysctl's IK value into farenheit and return it.
 
 ## Limitations
 
