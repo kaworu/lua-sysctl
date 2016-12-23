@@ -514,10 +514,10 @@ luaA_sysctl_get(lua_State *L)
 				else
 					lua_pushinteger(L, mv);
 			} else {
-				if (intlen > sizeof(lua_Unsigned))
+				if (intlen >= sizeof(lua_Integer))
 					lua_pushnumber(L, umv);
 				else
-					lua_pushunsigned(L, umv);
+					lua_pushinteger(L, umv);
 			}
 			lua_settable(L, -3);
 			len -= intlen;
@@ -582,7 +582,7 @@ luaA_sysctl_IK2farenheit(lua_State *L)
  */
 
 
-static const luaL_Reg lua_sysctl[] =
+static const luaL_reg lua_sysctl[] =
 {
 	{"get",			luaA_sysctl_get},
 	{"set",			luaA_sysctl_set},
