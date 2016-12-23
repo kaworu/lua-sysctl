@@ -3,31 +3,26 @@
 --  NOTE:
 --      sysctl.get() and sysctl.set() raise an error if any problem occur. If
 --      you don't control the key you're passing to these function you might
---      wanna use lua's protected calls (pcall).
+--      want to use lua's protected calls (pcall).
 -------------------------------------------------------------------------------
 --
 --  sysctl.get(key)
---      returns two values. first returned value is the sysctl(3) value,
---      second value is the format of returned value
+--      returns two values. The first returned value is the sysctl(3) value,
+--      the second value is the format.
 --          - "I" int
 --          - "UI" unsigned int
 --          - "IK" int, in (kelv * 10) (used to get temperature)
 --          - "L" long
 --          - "UL" unsigned long
---          - "Q" quad_t
---          - "UQ" unsigned quad_t
 --          - "A" char *
---          - "T,dev_t" dev_t
 --          - "S,clockinfo" struct clockinfo
 --          - "S,loadavg" struct loadavg
 --          - "S,timeval" struct timeval
 --          - "S,vmtotal" struct vmtotal
 --
 --      In lua land, it means that:
---          - "I", "UI", "IK", "L", "UL", "Q", "UQ" are numbers.
+--          - "I", "UI", "IK", "L", "UL", are numbers.
 --          - "A" is a string
---          - "T,dev_t" is a table of integers
---                  { minor, major }
 --          - "S,clockinfo" is a table of integers
 --                  { hz, tick, profhz, stathz }
 --          - "S,loadavg" is an array of numbers (double)
@@ -40,9 +35,9 @@
 -------------------------------------------------------------------------------
 --
 --  sysctl.set(key, newval)
---      set the sysctl's key to newval. return nothin' and throw lua
---      error if any problem occur. You should notice that some sysctl's key
---      are read only or read only tunable and then can't be set at runtime.
+--      set the sysctl's key to newval. return nothing and throw lua
+--      error if any problem occur. Note that some sysctl's key are read only
+--      or read only tunable and can not be set at runtime.
 -------------------------------------------------------------------------------
 --
 --  sysctl.IK2celsius(kelv)
