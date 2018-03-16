@@ -12,7 +12,7 @@
  *
  * Copyright (c) 1993
  *    The Regents of the University of California.  All rights reserved.
- * Copyright (c) 2008-2016
+ * Copyright (c) 2008-2018
  *    Alexandre Perrin <alex@kaworu.ch>.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
