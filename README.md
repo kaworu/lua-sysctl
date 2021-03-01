@@ -27,7 +27,7 @@ lua version if you want to build.
 
 Reading:
 ```
-> require('sysctl')
+> sysctl = require('sysctl')
 > val, type = sysctl.get('kern.ostype') -- reading a string
 > print(val)
 FreeBSD
@@ -61,7 +61,7 @@ avm 420396
 
 Writting:
 ```
-> require('sysctl')
+> sysctl = require('sysctl')
 > sysctl.set('security.bsd.see_other_uids', 0)
 ```
 
