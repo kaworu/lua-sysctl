@@ -5,7 +5,7 @@ SOLIB    = ${BUILDDIR}/sysctl.so
 DESTDIR ?= sysctl
 
 LDFLAGS += -shared -Wl,-soname,${SONAME}
-CFLAGS  += -Wall -Wextra -fPIC `pkg-config --cflags ${LUA_VER}`
+CFLAGS  += -Wall -Wextra -fPIC `pkg-config --cflags lua-${LUA_VER}`
 
 all: ${SOLIB}
 

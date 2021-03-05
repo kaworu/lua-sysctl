@@ -514,10 +514,10 @@ luaA_sysctl_get(lua_State *L)
 				else
 					lua_pushinteger(L, mv);
 			} else {
-				if (intlen > sizeof(lua_Unsigned))
+				if (intlen > sizeof(lua_Integer))
 					lua_pushnumber(L, umv);
 				else
-				        lua_pushinteger(L, (lua_Integer)(umv));
+					lua_pushinteger(L, (lua_Integer)(umv));
 			}
 			lua_settable(L, -3);
 			len -= intlen;
