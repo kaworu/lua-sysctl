@@ -61,6 +61,13 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+/*
+ * lua 5.3+ define LUA_MAXINTEGER, but lua 5.2 does not. See
+ * https://www.lua.org/manual/5.2/manual.html#lua_Integer
+ */
+#ifndef LUA_MAXINTEGER
+#define LUA_MAXINTEGER  PTRDIFF_MAX
+#endif
 
 /* NOTE: our signature of oidfmt differ from sysctl.c because we check for the
    buffer's size */
@@ -514,10 +521,10 @@ luaA_sysctl_get(lua_State *L)
 				else
 					lua_pushinteger(L, mv);
 			} else {
-				if (intlen > sizeof(lua_Unsigned))
+				if (umv > LUA_MAXINTEGER)
 					lua_pushnumber(L, umv);
 				else
-					lua_pushunsigned(L, umv);
+					lua_pushinteger(L, (lua_Integer)(umv));
 			}
 			lua_settable(L, -3);
 			len -= intlen;
