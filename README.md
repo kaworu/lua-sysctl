@@ -22,6 +22,10 @@ For more informations about sysctl see:
 Thanks to garga@FreeBSD and @uzsolt, lua-sysctl is in the FreeBSD ports
 tree under _devel/lua-sysctl_.
 
+### Using RavenPorts
+Thanks to @kraileth, lua-sysctl is in
+[Ravenports](https://github.com/jrmarino/Ravenports).
+
 NOTE: development is done on `master` branch, look for the branch matching your
 lua version if you want to build.
 
