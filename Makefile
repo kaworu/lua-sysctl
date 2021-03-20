@@ -15,7 +15,7 @@ ${SOLIB}: src/${SONAME}.c
 
 install: ${SOLIB}
 	install -m 755 -d ${DESTDIR}
-	install -m 644 ${SOLIB} ${DESTDIR}
+	install -m 755 ${SOLIB} ${DESTDIR}
 
 .PHONY: clean
 
