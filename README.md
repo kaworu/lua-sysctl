@@ -26,8 +26,35 @@ tree under _devel/lua-sysctl_.
 Thanks to @kraileth, lua-sysctl is in
 [Ravenports](https://github.com/jrmarino/Ravenports).
 
-NOTE: development is done on `master` branch, look for the branch matching your
-lua version if you want to build.
+### Build from source
+Example build, usage, and installation with Lua 5.4 (simply replace `LUA_VER`
+and `lua54` by your Lua version).
+
+Compiling:
+```console
+% make LUA_VER=5.4
+install -m 755 -d build
+cc -O2 -pipe -Wall -Wextra -fPIC `pkg-config --cflags lua-5.4` -o build/sysctl.so  -shared -Wl,-soname,lua_sysctl src/lua_sysctl.c
+```
+
+`require` from the local build/ directory:
+```console
+% sysctl -Na | LUA_CPATH="${PWD}/build/?.so;;" lua54 ./misc/test-all.lua
+…
+```
+
+Installing:
+```console
+# make LUA_VER=5.4 DESTDIR=/usr/local/lib/lua/5.4 install
+install -m 755 -d /usr/local/lib/lua/5.4
+install -m 755 build/sysctl.so /usr/local/lib/lua/5.4
+```
+
+Now we can `require` from the standard Lua path:
+```console
+% sysctl -Na | lua54 ./misc/test-all.lua
+…
+```
 
 ## Examples
 
