@@ -18,7 +18,9 @@ For more informations about sysctl see:
 
 ## Installation
 
-Thanks to garga@ **lua-sysctl** is in the port tree under _devel/lua-sysctl_.
+### Using the FreeBSD ports tree
+Thanks to garga@FreeBSD and @uzsolt, lua-sysctl is in the FreeBSD ports
+tree under _devel/lua-sysctl_.
 
 NOTE: development is done on `master` branch, look for the branch matching your
 lua version if you want to build.
