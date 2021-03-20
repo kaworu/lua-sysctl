@@ -6,7 +6,7 @@ reading and writing sysctl values (see [limitations](#limitations)).
 
 Although the project has been started to display system informations inside the
 [Awesome window manager](http://awesome.naquadah.org/) it has been designed as
-a general purpose interface, allowing it to be embeded into bigger project,
+a general purpose interface, allowing it to be embedded into bigger project,
 used as library by system administration scripts etc.
 
 Most of the implementation is based on FreeBSD's `sysctl(8)` command line tool.
@@ -100,15 +100,16 @@ Writting:
 
 ## Functions
 
-NOTE: Both sysctl.get() and sysctl.set() raise an error if any problem occur.
-If you don't control the key you're passing to these function you might want to
-use lua's protected calls (pcall).
+NOTE: Both `sysctl.get()` and `sysctl.set()` raise an error if any problem
+occur.  If you don't control the key you're passing to these function you might
+want to use [protected calls](https://www.lua.org/work/doc/manual.html#2.3).
 
 ### sysctl.get(key)
-Rreturns two values: The first returned value is the sysctl(3) value, the
+Returns two values: The first returned value is the `sysctl(3)` value, the
 second value is the format.
 
 #### formats
+From format value to C types:
 - _I_ `int`
 - _UI_ `unsigned int`
 - _IK_ `int`, in (kelv * 10) (used to get temperature)
@@ -120,7 +121,7 @@ second value is the format.
 - _S,timeval_ `struct timeval`
 - _S,vmtotal_ `struct vmtotal`
 
-In lua land, it means that:
+In Lua land, it means that:
 - _I_, _UI_, _IK_, _L_, _UL_, are numbers.
 - _A_ is a string.
 - _S,clockinfo_ is a table of integers
@@ -133,15 +134,15 @@ In lua land, it means that:
   `{ rq, dw, pw, sl, vm, avm, rm, arm, vmshr, avmshr, rmshr, armshr, free }`
 
 ### sysctl.set(key, newval)
-Set the sysctl's key to newval. Return nothing and throw lua error if any
+Set the sysctl's key to newval. Return nothing and throw Lua error if any
 problem occur. Note that some sysctl's key are read only or read only tunable
 and can not be set at runtime.
 
 ### sysctl.IK2celsius(kelv)
-Convert a sysctl's IK value into celsius and return it.
+Convert a sysctl's IK value into Celsius and return it.
 
 ### sysctl.IK2farenheit(kelv)
-convert a sysctl's IK value into farenheit and return it.
+Convert a sysctl's IK value into Fahrenheit and return it.
 
 ## Limitations
 
@@ -149,13 +150,13 @@ convert a sysctl's IK value into farenheit and return it.
   "read-only tunable").
 * You need root privilege to change sysctl variables
 * Some variables cannot be changed from inside a jail (and might depend of the
-  securelevel too).
+  _securelevel_ too).
 
-Theses limitations are not due to the implementation of **lua-sysctl** but
-rather to `sysctl(3)` and how FreeBSD work. Note that most (if not all) theses
+Theses limitations are not due to the implementation of lua-sysctl but rather
+to `sysctl(3)` and how FreeBSD work. Note that most (if not all) theses
 limitations are desirables.
 
-* **lua-sysctl** is not able to handle values for all existing types. More
-  precisely, it can handle the same subset supported by the `sysctl(8)` command
-  line utility. It should not be an issue since most sysctl key have "simple"
-  values (numeric or string).
+* lua-sysctl is unable to handle values for all existing types. More precisely,
+  it can handle about the same subset supported by the `sysctl(8)` command line
+  utility. It should not be an issue since most sysctl key have "simple" values
+  (i.e. numeric or string).
