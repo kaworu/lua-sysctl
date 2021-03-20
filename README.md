@@ -17,6 +17,11 @@ For more informations about sysctl see:
 * http://www.freebsd.org/cgi/man.cgi?query=sysctl&amp;sektion=3
 
 ## Installation
+* Supported Lua versions: 5.2, 5.3, and 5.4
+* Supported FreeBSD versions: 12.x
+
+Note that lua-sysctl might work fine with other version(s), I just don't have
+the time to test more than what is listed above.
 
 ### Using the FreeBSD ports tree
 Thanks to garga@FreeBSD and @uzsolt, lua-sysctl is in the FreeBSD ports
