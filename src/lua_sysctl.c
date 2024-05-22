@@ -267,7 +267,7 @@ luaA_sysctl_set(lua_State *L)
 
 	len = name2oid(bufp, mib);
 	if (len < 0)
-		return (luaL_error(L, "unknown iod '%s'", bufp));
+		return (luaL_error(L, "unknown oid '%s'", bufp));
 	if (oidfmt(mib, len, fmt, sizeof(fmt), &kind) != 0)
 		return (luaL_error(L, "couldn't find format of oid '%s'", bufp));
 	if ((kind & CTLTYPE) == CTLTYPE_NODE)
@@ -438,7 +438,7 @@ luaA_sysctl_get(lua_State *L)
 
 	nlen = name2oid(buf, oid);
 	if (nlen < 0)
-		return (luaL_error(L, "%s: unknown iod", buf));
+		return (luaL_error(L, "%s: unknown oid", buf));
 	if (oidfmt(oid, nlen, fmt, sizeof(fmt), &kind) != 0)
 		return (luaL_error(L, "couldn't find format of oid '%s'", buf));
 	if ((kind & CTLTYPE) == CTLTYPE_NODE)
